@@ -16,6 +16,7 @@
 │ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR             │
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
+/*
 #include "libc/assert.h"
 #include "libc/calls/blockcancel.internal.h"
 #include "libc/calls/calls.h"
@@ -47,13 +48,38 @@
 #include "libc/sysv/consts/s.h"
 #include "libc/sysv/errfuns.h"
 #include "libc/thread/tls.h"
+*/
+
+#include "unveil.h"
+#include "landlock_add_rule.h"
+#include "landlock_create_ruleset.h"
+#include "landlock_restrict_self.h"
+#include "CheckLargeStackAllocation.h"
+#include "BLOCK_CANCELLATIONS.h"
+#include "ALLOW_CANCELLATIONS.h"
+#include "IsLinux.h"
+#include "joinpaths.h"
+#include "integral.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/prctl.h>
+#include <linux/seccomp.h>
+#include <linux/filter.h>
+#include <sys/syscall.h>
+#include <libgen.h>
+#include <string.h>
+#include <errno.h>
+#include <limits.h>
+#include <stddef.h>
 
 #define OFF(f) offsetof(struct seccomp_data, f)
 
 #define UNVEIL_READ                                             \
   (LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR | \
    LANDLOCK_ACCESS_FS_REFER)
-#define UNVEIL_WRITE (LANDLOCK_ACCESS_FS_WRITE_FILE)
+#define UNVEIL_WRITE (LANDLOCK_ACCESS_FS_WRITE_FILE | LANDLOCK_ACCESS_FS_TRUNCATE)
 #define UNVEIL_EXEC  (LANDLOCK_ACCESS_FS_EXECUTE)
 #define UNVEIL_CREATE                                             \
   (LANDLOCK_ACCESS_FS_MAKE_CHAR | LANDLOCK_ACCESS_FS_MAKE_DIR |   \
@@ -65,16 +91,36 @@
   (LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_WRITE_FILE | \
    LANDLOCK_ACCESS_FS_EXECUTE)
 
-static const struct sock_filter kUnveilBlacklist[] = {
+static struct sock_filter kUnveilBlacklistAbiVersionBelow3[] = {
+#if 0 // Should we have this ? It certainly means things don't work on other architectures than x86-64 as-is...
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(arch)),
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0),
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+#endif
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
-    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_linux_truncate, 1, 0),
-    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_linux_setxattr, 0, 1),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_truncate, 1, 0),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setxattr, 0, 1),
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (1 & SECCOMP_RET_DATA)),
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
 };
+
+static struct sock_filter kUnveilBlacklistLatestAbi[] = {
+#if 0
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(arch)),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+#endif
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setxattr, 0, 1),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (1 & SECCOMP_RET_DATA)),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+};
+
+static int landlock_abi_version;
+
+__attribute__((__constructor__)) void init_landlock_version() {
+  landlock_abi_version = landlock_create_ruleset(0, 0, LANDLOCK_CREATE_RULESET_VERSION);
+}
 
 /**
  * Long living state for landlock calls.
@@ -82,7 +128,7 @@ static const struct sock_filter kUnveilBlacklist[] = {
  * On init, the current supported abi is checked and unavailable rights are
  * masked off.
  *
- * As of 5.19, the latest abi is v2.
+ * As of 6.2, the latest abi is v3.
  *
  * TODO:
  *  - Integrate with pledge and remove the file access?
@@ -96,14 +142,20 @@ _Thread_local static struct {
 static int unveil_final(void) {
   int e, rc;
   struct sock_fprog sandbox = {
-      .filter = kUnveilBlacklist,
-      .len = ARRAYLEN(kUnveilBlacklist),
+      .filter = kUnveilBlacklistLatestAbi,
+      .len = ARRAYLEN(kUnveilBlacklistLatestAbi),
   };
+  if (landlock_abi_version < 3) {
+    sandbox = (struct sock_fprog){
+      .filter = kUnveilBlacklistAbiVersionBelow3,
+      .len = ARRAYLEN(kUnveilBlacklistAbiVersionBelow3),
+    };
+  }
   e = errno;
   prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
   errno = e;
   if ((rc = landlock_restrict_self(State.fd, 0)) != -1 &&
-      (rc = sys_close(State.fd)) != -1 &&
+      (rc = close(State.fd)) != -1 &&
       (rc = prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &sandbox)) != -1) {
     State.fd = 0;
   }
@@ -112,7 +164,7 @@ static int unveil_final(void) {
 
 static int err_close(int rc, int fd) {
   int serrno = errno;
-  sys_close(fd);
+  close(fd);
   errno = serrno;
   return rc;
 }
@@ -120,15 +172,17 @@ static int err_close(int rc, int fd) {
 static int unveil_init(void) {
   int rc, fd;
   State.fs_mask = UNVEIL_READ | UNVEIL_WRITE | UNVEIL_EXEC | UNVEIL_CREATE;
-  if ((rc = landlock_create_ruleset(0, 0, LANDLOCK_CREATE_RULESET_VERSION)) ==
-      -1) {
+  if (landlock_abi_version == -1) {
     if (errno == EOPNOTSUPP) {
       errno = ENOSYS;
     }
     return -1;
   }
-  if (rc < 2) {
+  if (landlock_abi_version < 2) {
     State.fs_mask &= ~LANDLOCK_ACCESS_FS_REFER;
+  }
+  if (landlock_abi_version < 3) {
+    State.fs_mask &= ~LANDLOCK_ACCESS_FS_TRUNCATE;
   }
   const struct landlock_ruleset_attr attr = {
       .handled_access_fs = State.fs_mask,
@@ -137,10 +191,10 @@ static int unveil_init(void) {
   //                assert(__sys_fcntl(rc, F_GETFD, 0) == FD_CLOEXEC);
   if ((rc = landlock_create_ruleset(&attr, sizeof(attr), 0)) < 0) return -1;
   // grant file descriptor a higher number that's less likely to interfere
-  if ((fd = __sys_fcntl(rc, F_DUPFD_CLOEXEC, 100)) == -1) {
+  if ((fd = fcntl(rc, F_DUPFD_CLOEXEC, 100)) == -1) {
     return err_close(-1, rc);
   }
-  if (sys_close(rc) == -1) {
+  if (close(rc) == -1) {
     return err_close(-1, fd);
   }
   State.fd = fd;
@@ -162,7 +216,10 @@ int sys_unveil_linux(const char *path, const char *permissions) {
   CheckLargeStackAllocation(&b, sizeof(b));
 
   if (!State.fd && (rc = unveil_init()) == -1) return rc;
-  if ((path && !permissions) || (!path && permissions)) return einval();
+  if ((path && !permissions) || (!path && permissions)) {
+      errno = EINVAL;
+      return -1;
+  }
   if (!path && !permissions) return unveil_final();
   struct landlock_path_beneath_attr pb = {0};
   for (const char *c = permissions; *c != '\0'; c++) {
@@ -180,7 +237,8 @@ int sys_unveil_linux(const char *path, const char *permissions) {
         pb.allowed_access |= UNVEIL_CREATE;
         break;
       default:
-        return einval();
+        errno = EINVAL;
+        return -1;
     }
   }
   pb.allowed_access &= State.fs_mask;
@@ -189,16 +247,20 @@ int sys_unveil_linux(const char *path, const char *permissions) {
   // realpath(path) to the ruleset. however a corner case exists where
   // it isn't valid, e.g. /dev/stdin -> /proc/2834/fd/pipe:[51032], so
   // we'll need to work around this, by adding the path which is valid
-  if (strlen(path) + 1 > PATH_MAX) return enametoolong();
+  if (strlen(path) + 1 > PATH_MAX) {
+      errno = ENAMETOOLONG;
+      return -1;
+  }
   last = path;
   next = path;
   for (int i = 0;; ++i) {
     if (i == 64) {
       // give up
-      return eloop();
+      errno = ELOOP;
+      return -1;
     }
     int err = errno;
-    if ((rc = sys_readlinkat(AT_FDCWD, next, b.lbuf, PATH_MAX)) != -1) {
+    if ((rc = readlinkat(AT_FDCWD, next, b.lbuf, PATH_MAX)) != -1) {
       if (rc < PATH_MAX) {
         // we need to nul-terminate
         b.lbuf[rc] = 0;
@@ -208,16 +270,18 @@ int sys_unveil_linux(const char *path, const char *permissions) {
         // next = join(dirname(next), link)
         strcpy(b.buf2, next);
         dir = dirname(b.buf2);
-        if ((next = _joinpaths(b.buf3, PATH_MAX, dir, b.lbuf))) {
+        if ((next = joinpaths(b.buf3, PATH_MAX, dir, b.lbuf))) {
           // next now points to either: buf3, buf2, lbuf, rodata
           strcpy(b.buf4, next);
           next = b.buf4;
         } else {
-          return enametoolong();
+          errno = ENAMETOOLONG;
+          return -1;
         }
       } else {
         // symbolic link data was too long
-        return enametoolong();
+        errno = ENAMETOOLONG;
+        return -1;
       }
     } else if (errno == EINVAL) {
       // next wasn't a symbolic link
@@ -237,13 +301,13 @@ int sys_unveil_linux(const char *path, const char *permissions) {
 
   // now we can open the path
   BLOCK_CANCELLATIONS;
-  rc = sys_open(path, O_PATH | O_NOFOLLOW | O_CLOEXEC, 0);
+  rc = open(path, O_PATH | O_NOFOLLOW | O_CLOEXEC, 0);
   ALLOW_CANCELLATIONS;
   if (rc == -1) return rc;
 
   pb.parent_fd = rc;
   struct stat st;
-  if ((rc = sys_fstat(pb.parent_fd, &st)) == -1) {
+  if ((rc = fstat(pb.parent_fd, &st)) == -1) {
     return err_close(rc, pb.parent_fd);
   }
   if (!S_ISDIR(st.st_mode)) {
@@ -252,7 +316,7 @@ int sys_unveil_linux(const char *path, const char *permissions) {
   if ((rc = landlock_add_rule(State.fd, LANDLOCK_RULE_PATH_BENEATH, &pb, 0))) {
     return err_close(rc, pb.parent_fd);
   }
-  sys_close(pb.parent_fd);
+  close(pb.parent_fd);
   return rc;
 }
 
@@ -301,14 +365,19 @@ int sys_unveil_linux(const char *path, const char *permissions) {
  *    possible to use opendir() and go fishing for paths which weren't
  *    previously known.
  *
- * 5. Use ftruncate() rather than truncate(). One issue Landlock hasn't
- *    addressed yet is restrictions over truncate() and setxattr() which
- *    could permit certain kinds of modifications to files outside the
- *    sandbox. When your policy is committed, we install a SECCOMP BPF
- *    filter to disable those calls, however similar trickery may be
- *    possible through other unaddressed calls like ioctl(). Using the
- *    pledge() function in addition to unveil() will solve this, since
- *    it installs a strong system call access policy.
+ * 5. Use ftruncate() rather than truncate() if you wish for portability to
+ *    Linux kernels versions released before February 2022. One issue
+ *    Landlock hadn't addressed as of ABI version 2 was restrictions over
+ *    truncate() and setxattr() which could permit certain kinds of
+ *    modifications to files outside the sandbox. When your policy is
+ *    committed, we install a SECCOMP BPF filter to disable those calls,
+ *    however similar trickery may be possible through other unaddressed
+ *    calls like ioctl(). Using the pledge() function in addition to
+ *    unveil() will solve this, since it installs a strong system call
+ *    access policy. Linux 6.2 has improved this situation with Landlock
+ *    ABI v3, which added the ability to control truncation operations -
+ *    this means the SECCOMP BPF filter will only disable
+ *    truncate() on Linux 6.1 or older
  *
  * 6. Set your process-wide policy at startup from the main thread. On
  *    OpenBSD unveil() will apply process-wide even when called from a
@@ -347,24 +416,26 @@ int sys_unveil_linux(const char *path, const char *permissions) {
  * @raise EINVAL if one argument is set and the other is not
  * @raise EINVAL if an invalid character in `permissions` was found
  * @raise EPERM if unveil() is called after locking
- * @note on Linux this function requires Linux Kernel 5.13+
+ * @note on Linux this function requires Linux Kernel 5.13+ and version 6.2+
+ *     to properly support truncation operations
  * @see [1] https://docs.kernel.org/userspace-api/landlock.html
  * @threadsafe
  */
 int unveil(const char *path, const char *permissions) {
   int e, rc;
   e = errno;
-  if (IsGenuineBlink()) {
+  /*if (IsGenuineBlink()) {
     rc = 0;  // blink doesn't support landlock
-  } else if (IsLinux()) {
+  } else*/ if (IsLinux()) {
     rc = sys_unveil_linux(path, permissions);
   } else {
-    rc = sys_unveil(path, permissions);
+    abort();
+    //rc = sys_unveil(path, permissions);
   }
   if (rc == -1 && errno == ENOSYS) {
     errno = e;
     rc = 0;
   }
-  STRACE("unveil(%#s, %#s) → %d% m", path, permissions, rc);
+  //STRACE("unveil(%#s, %#s) → %d% m", path, permissions, rc);
   return rc;
 }

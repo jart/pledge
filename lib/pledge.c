@@ -16,6 +16,7 @@
 │ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR             │
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
+/*
 #include "libc/calls/calls.h"
 #include "libc/calls/pledge.internal.h"
 #include "libc/calls/state.internal.h"
@@ -27,6 +28,17 @@
 #include "libc/nexgen32e/vendor.internal.h"
 #include "libc/runtime/runtime.h"
 #include "libc/sysv/errfuns.h"
+*/
+
+#include "pledge.h"
+#include "IsLinux.h"
+#include "IsOpenbsd.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <stdbool.h>
+
+int __pledge_mode;
 
 /**
  * Permits system operations, e.g.
@@ -239,9 +251,9 @@
 int pledge(const char *promises, const char *execpromises) {
   int e, rc;
   unsigned long ipromises, iexecpromises;
-  if (IsGenuineBlink()) {
+  /*if (IsGenuineBlink()) {
     rc = 0;  // blink doesn't support seccomp
-  } else if (!ParsePromises(promises, &ipromises) &&
+  } else */if (!ParsePromises(promises, &ipromises) &&
              !ParsePromises(execpromises, &iexecpromises)) {
     if (IsLinux()) {
       // copy exec and execnative from promises to execpromises
@@ -251,28 +263,35 @@ int pledge(const char *promises, const char *execpromises) {
       // this check only matters when exec / execnative are allowed
       if ((ipromises & ~iexecpromises) &&
           (~ipromises & (1ul << PROMISE_EXEC))) {
-        STRACE("execpromises must be a subset of promises");
-        rc = einval();
+        //STRACE("execpromises must be a subset of promises");
+        errno = EINVAL;
+        rc = -1;
       } else {
         rc = sys_pledge_linux(ipromises, __pledge_mode);
         if (rc > -4096u) errno = -rc, rc = -1;
       }
     } else {
+      abort();
+      /*
       e = errno;
       rc = sys_pledge(promises, execpromises);
       if (rc && errno == ENOSYS) {
         errno = e;
         rc = 0;
       }
+      */
     }
-    if (!rc && !__vforked &&
+    if (!rc && true/*!__vforked*/ &&
         (IsOpenbsd() || (IsLinux() && getpid() == gettid()))) {
+      /*
       __promises = ipromises;
       __execpromises = iexecpromises;
+      */
     }
   } else {
-    rc = einval();
+    errno = EINVAL;
+    rc = -1;
   }
-  STRACE("pledge(%#s, %#s) → %d% m", promises, execpromises, rc);
+  //STRACE("pledge(%#s, %#s) → %d% m", promises, execpromises, rc);
   return rc;
 }

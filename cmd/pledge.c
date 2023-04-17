@@ -16,6 +16,7 @@
 │ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR             │
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
+/*
 #include "libc/assert.h"
 #include "libc/calls/calls.h"
 #include "libc/calls/landlock.h"
@@ -62,14 +63,49 @@
 #include "libc/sysv/errfuns.h"
 #include "libc/x/x.h"
 #include "third_party/getopt/getopt.h"
+*/
+
+#include "lib/getcpucount.h"
+#include "lib/sizetol.h"
+#include "lib/kprintf.h"
+#include "lib/xstrcat.h"
+#include "lib/landlock_create_ruleset.h"
+#include "lib/unveil.h"
+#include "lib/ioprio_set.h"
+#include "lib/pledge.h"
+#include "lib/xjoinpaths.h"
+#include "lib/copyfd.h"
+#include "lib/IsLinux.h"
+#include "lib/IsOpenbsd.h"
+#include "lib/is_linux_2_6_23.h"
+#include "lib/commandv.h"
+#include "lib/ksnprintf.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <sys/prctl.h>
+#include <sys/fsuid.h>
+#include <sys/resource.h>
+#include <sched.h>
+#include <linux/sched.h>
+#include <sys/sysinfo.h>
+#include <string.h>
+#include <sys/param.h>
+#include <errno.h>
+#include <limits.h>
+#include <stdbool.h>
 
 // MANUALLY TESTED BY RUNNING
 //
 //     test/tool/build/pledge_test.sh
 //
 
+/*
 STATIC_YOINK("strerror_wr");
 STATIC_YOINK("zip_uri_support");
+*/
 
 #define USAGE \
   "\
@@ -162,12 +198,12 @@ static void GetOpts(int argc, char *argv[]) {
   g_fszquota = 256 * 1000 * 1000;
   if (!sysinfo(&si)) {
     g_memquota = si.totalram;
-    g_proquota = _getcpucount() + si.procs;
+    g_proquota = getcpucount() + si.procs;
   } else {
-    g_proquota = _getcpucount() * 100;
+    g_proquota = getcpucount() * 100;
     g_memquota = 4L * 1024 * 1024 * 1024;
   }
-  while ((opt = getopt(argc, argv, "hnqkNVT:p:u:g:c:C:D:P:M:F:O:v:")) != -1) {
+  while ((opt = getopt(argc, argv, "+hnqkNVT:p:u:g:c:C:D:P:M:F:O:v:")) != -1) {
     switch (opt) {
       case 'n':
         g_nice = true;
@@ -318,16 +354,22 @@ int SetLimit(int r, long lo, long hi) {
   return setrlimit(r, &lim);
 }
 
+/*
 int GetBaseCpuFreqMhz(void) {
   return KCPUIDS(16H, EAX) & 0x7fff;
 }
+*/
 
 int SetCpuLimit(int secs) {
   int mhz, lim;
   if (secs <= 0) return 0;
+  errno = EOPNOTSUPP;
+  return -1;
+  /*
   if (!(mhz = GetBaseCpuFreqMhz())) return eopnotsupp();
   lim = ceil(3100. / mhz * secs);
   return SetLimit(RLIMIT_CPU, lim, lim);
+  */
 }
 
 bool PathExists(const char *path) {
@@ -537,7 +579,7 @@ int Extract(const char *from, const char *to, int mode) {
     close(fdin);
     return -1;
   }
-  if (_copyfd(fdin, fdout, -1) == -1) {
+  if (copyfd(fdin, fdout, -1) == -1) {
     close(fdout);
     close(fdin);
     return -1;
@@ -565,7 +607,7 @@ int main(int argc, char *argv[]) {
   GetOpts(argc, argv);
   if (g_test) {
     if (!strcmp(g_test, "pledge")) {
-      if (IsOpenbsd() || (IsLinux() && __is_linux_2_6_23())) {
+      if (IsOpenbsd() || (IsLinux() && is_linux_2_6_23())) {
         exit(0);
       } else {
         exit(1);
@@ -673,6 +715,7 @@ int main(int argc, char *argv[]) {
   }
 
   // figure out where we want the dso
+#if 0 // Implement this later
   if (_IsDynamicExecutable(prog)) {
     isdynamic = true;
     if ((s = getenv("TMPDIR")) ||  //
@@ -694,6 +737,7 @@ int main(int argc, char *argv[]) {
       putenv(buf);
     }
   }
+#endif
 
   if (g_dontdrop) {
     if (hasfunbits) {
@@ -775,6 +819,7 @@ int main(int argc, char *argv[]) {
       __pledge_mode |= PLEDGE_STDERR_LOGGING;
     }
   }
+
   if (isdynamic) {
     g_promises = xstrcat(g_promises, ' ', "prot_exec");
   }
@@ -796,8 +841,10 @@ int main(int argc, char *argv[]) {
     _Exit(19);
   }
 
+  extern char **environ;
+
   // launch program
-  sys_execve(prog, argv + optind, environ);
+  execve(prog, argv + optind, environ);
   kprintf("%s: execve failed: %m\n", prog);
   return 127;
 }
