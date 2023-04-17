@@ -116,12 +116,20 @@ static const struct thatispacked SyscallName {
     {__NR_exit_group, "exit_group"},                            //
     {__NR_read, "read"},                                        //
     {__NR_write, "write"},                                      //
+#ifdef __NR_open
     {__NR_open, "open"},                                        //
+#endif
     {__NR_close, "close"},                                      //
+#ifdef __NR_stat
     {__NR_stat, "stat"},                                        //
+#endif
     {__NR_fstat, "fstat"},                                      //
+#ifdef __NR_lstat
     {__NR_lstat, "lstat"},                                      //
+#endif
+#ifdef __NR_poll
     {__NR_poll, "poll"},                                        //
+#endif
     {__NR_ppoll, "ppoll"},                                      //
     {__NR_brk, "brk"},                                          //
     {__NR_rt_sigreturn, "sigreturn"},                           //
@@ -137,9 +145,15 @@ static const struct thatispacked SyscallName {
     {__NR_pwrite64, "pwrite"},                                  //
     {__NR_readv, "readv"},                                      //
     {__NR_writev, "writev"},                                    //
+#ifdef __NR_access
     {__NR_access, "access"},                                    //
+#endif
+#ifdef __NR_pipe
     {__NR_pipe, "pipe"},                                        //
+#endif
+#ifdef __NR_select
     {__NR_select, "select"},                                    //
+#endif
     {__NR_pselect6, "pselect6"},                                //
     {__NR_sched_yield, "sched_yield"},                          //
     {__NR_mremap, "mremap"},                                    //
@@ -149,12 +163,18 @@ static const struct thatispacked SyscallName {
     {__NR_shmat, "shmat"},                                      //
     {__NR_shmctl, "shmctl"},                                    //
     {__NR_dup, "dup"},                                          //
+#ifdef __NR_dup2
     {__NR_dup2, "dup2"},                                        //
+#endif
+#ifdef __NR_pause
     {__NR_pause, "pause"},                                      //
+#endif
     {__NR_nanosleep, "nanosleep"},                              //
     {__NR_getitimer, "getitimer"},                              //
     {__NR_setitimer, "setitimer"},                              //
+#ifdef __NR_alarm
     {__NR_alarm, "alarm"},                                      //
+#endif
     {__NR_getpid, "getpid"},                                    //
     {__NR_sendfile, "sendfile"},                                //
     {__NR_socket, "socket"},                                    //
@@ -172,8 +192,12 @@ static const struct thatispacked SyscallName {
     {__NR_socketpair, "socketpair"},                            //
     {__NR_setsockopt, "setsockopt"},                            //
     {__NR_getsockopt, "getsockopt"},                            //
+#ifdef __NR_fork
     {__NR_fork, "fork"},                                        //
+#endif
+#ifdef __NR_vfork
     {__NR_vfork, "vfork"},                                      //
+#endif
     {__NR_execve, "execve"},                                    //
     {__NR_wait4, "wait4"},                                      //
     {__NR_kill, "kill"},                                        //
@@ -200,19 +224,41 @@ static const struct thatispacked SyscallName {
     {__NR_getcwd, "getcwd"},                                    //
     {__NR_chdir, "chdir"},                                      //
     {__NR_fchdir, "fchdir"},                                    //
+#ifdef __NR_rename
     {__NR_rename, "rename"},                                    //
+#endif
+#ifdef __NR_mkdir
     {__NR_mkdir, "mkdir"},                                      //
+#endif
+#ifdef __NR_rmdir
     {__NR_rmdir, "rmdir"},                                      //
+#endif
+#ifdef __NR_creat
     {__NR_creat, "creat"},                                      //
+#endif
+#ifdef __NR_link
     {__NR_link, "link"},                                        //
+#endif
+#ifdef __NR_unlink
     {__NR_unlink, "unlink"},                                    //
+#endif
+#ifdef __NR_symlink
     {__NR_symlink, "symlink"},                                  //
+#endif
+#ifdef __NR_readlink
     {__NR_readlink, "readlink"},                                //
+#endif
+#ifdef __NR_chmod
     {__NR_chmod, "chmod"},                                      //
+#endif
     {__NR_fchmod, "fchmod"},                                    //
+#ifdef __NR_chown
     {__NR_chown, "chown"},                                      //
+#endif
     {__NR_fchown, "fchown"},                                    //
+#ifdef __NR_lchown
     {__NR_lchown, "lchown"},                                    //
+#endif
     {__NR_umask, "umask"},                                      //
     {__NR_gettimeofday, "gettimeofday"},                        //
     {__NR_getrlimit, "getrlimit"},                              //
@@ -224,7 +270,9 @@ static const struct thatispacked SyscallName {
     {__NR_getuid, "getuid"},                                    //
     {__NR_getgid, "getgid"},                                    //
     {__NR_getppid, "getppid"},                                  //
+#ifdef __NR_getpgrp
     {__NR_getpgrp, "getpgrp"},                                  //
+#endif
     {__NR_setsid, "setsid"},                                    //
     {__NR_getsid, "getsid"},                                    //
     {__NR_getpgid, "getpgid"},                                  //
@@ -244,7 +292,9 @@ static const struct thatispacked SyscallName {
     {__NR_rt_sigpending, "sigpending"},                         //
     {__NR_rt_sigsuspend, "sigsuspend"},                         //
     {__NR_sigaltstack, "sigaltstack"},                          //
+#ifdef __NR_mknod
     {__NR_mknod, "mknod"},                                      //
+#endif
     {__NR_mknodat, "mknodat"},                                  //
     {__NR_statfs, "statfs"},                                    //
     {__NR_fstatfs, "fstatfs"},                                  //
@@ -269,8 +319,12 @@ static const struct thatispacked SyscallName {
     {__NR_rt_sigtimedwait, "sigtimedwait"},                     //
     {__NR_rt_sigqueueinfo, "rt_sigqueueinfo"},                  //
     {__NR_personality, "personality"},                          //
+#ifdef __NR_ustat
     {__NR_ustat, "ustat"},                                      //
+#endif
+#ifdef __NR_sysfs
     {__NR_sysfs, "sysfs"},                                      //
+#endif
     {__NR_sched_setparam, "sched_setparam"},                    //
     {__NR_sched_getparam, "sched_getparam"},                    //
     {__NR_sched_setscheduler, "sched_setscheduler"},            //
@@ -279,19 +333,29 @@ static const struct thatispacked SyscallName {
     {__NR_sched_get_priority_min, "sched_get_priority_min"},    //
     {__NR_sched_rr_get_interval, "sched_rr_get_interval"},      //
     {__NR_vhangup, "vhangup"},                                  //
+#ifdef __NR_modify_ldt
     {__NR_modify_ldt, "modify_ldt"},                            //
+#endif
     {__NR_pivot_root, "pivot_root"},                            //
+#ifdef __NR__sysctl
     {__NR__sysctl, "_sysctl"},                                  //
+#endif
     {__NR_prctl, "prctl"},                                      //
+#ifdef __NR_arch_prctl
     {__NR_arch_prctl, "arch_prctl"},                            //
+#endif
     {__NR_adjtimex, "adjtimex"},                                //
     {__NR_umount2, "umount2"},                                  //
     {__NR_swapon, "swapon"},                                    //
     {__NR_swapoff, "swapoff"},                                  //
     {__NR_sethostname, "sethostname"},                          //
     {__NR_setdomainname, "setdomainname"},                      //
+#ifdef __NR_iopl
     {__NR_iopl, "iopl"},                                        //
+#endif
+#ifdef __NR_ioperm
     {__NR_ioperm, "ioperm"},                                    //
+#endif
     {__NR_init_module, "init_module"},                          //
     {__NR_delete_module, "delete_module"},                      //
     {__NR_gettid, "gettid"},                                    //
@@ -316,10 +380,16 @@ static const struct thatispacked SyscallName {
     {__NR_io_submit, "io_submit"},                              //
     {__NR_io_cancel, "io_cancel"},                              //
     {__NR_lookup_dcookie, "lookup_dcookie"},                    //
+#ifdef __NR_epoll_create
     {__NR_epoll_create, "epoll_create"},                        //
+#endif
+#ifdef __NR_epoll_wait
     {__NR_epoll_wait, "epoll_wait"},                            //
+#endif
     {__NR_epoll_ctl, "epoll_ctl"},                              //
+#ifdef __NR_getdents
     {__NR_getdents, "getdents"},                                //
+#endif
     {__NR_getdents64, "getdents64"},                            //
     {__NR_set_tid_address, "set_tid_address"},                  //
     {__NR_restart_syscall, "restart_syscall"},                  //
@@ -351,15 +421,23 @@ static const struct thatispacked SyscallName {
     {__NR_keyctl, "keyctl"},                                    //
     {__NR_ioprio_set, "ioprio_set"},                            //
     {__NR_ioprio_get, "ioprio_get"},                            //
+#ifdef __NR_inotify_init
     {__NR_inotify_init, "inotify_init"},                        //
+#endif
     {__NR_inotify_add_watch, "inotify_add_watch"},              //
     {__NR_inotify_rm_watch, "inotify_rm_watch"},                //
     {__NR_openat, "openat"},                                    //
     {__NR_mkdirat, "mkdirat"},                                  //
     {__NR_fchownat, "fchownat"},                                //
+#ifdef __NR_utime
     {__NR_utime, "utime"},                                      //
+#endif
+#ifdef __NR_utimes
     {__NR_utimes, "utimes"},                                    //
+#endif
+#ifdef __NR_futimesat
     {__NR_futimesat, "futimesat"},                              //
+#endif
     {__NR_newfstatat, "fstatat"},                               //
     {__NR_unlinkat, "unlinkat"},                                //
     {__NR_renameat, "renameat"},                                //
@@ -387,9 +465,13 @@ static const struct thatispacked SyscallName {
     {__NR_perf_event_open, "perf_event_open"},                  //
     {__NR_inotify_init1, "inotify_init1"},                      //
     {__NR_rt_tgsigqueueinfo, "rt_tgsigqueueinfo"},              //
+#ifdef __NR_signalfd
     {__NR_signalfd, "signalfd"},                                //
+#endif
     {__NR_signalfd4, "signalfd4"},                              //
+#ifdef __NR_eventfd
     {__NR_eventfd, "eventfd"},                                  //
+#endif
     {__NR_eventfd2, "eventfd2"},                                //
     {__NR_timerfd_create, "timerfd_create"},                    //
     {__NR_timerfd_settime, "timerfd_settime"},                  //
@@ -491,7 +573,9 @@ static const uint16_t kPledgeStdio[] = {
     __NR_preadv,             //
     __NR_preadv2,            //
     __NR_dup,                //
+#ifdef __NR_dup2
     __NR_dup2,               //
+#endif
     __NR_dup3,               //
     __NR_fchdir,             //
     __NR_fcntl | STDIO,      //
@@ -503,7 +587,9 @@ static const uint16_t kPledgeStdio[] = {
     __NR_getrandom,          //
     __NR_getgroups,          //
     __NR_getpgid,            //
+#ifdef __NR_getpgrp
     __NR_getpgrp,            //
+#endif
     __NR_getpid,             //
     __NR_gettid,             //
     __NR_getuid,             //
@@ -536,33 +622,53 @@ static const uint16_t kPledgeStdio[] = {
     __NR_madvise,            //
     __NR_fadvise64,          //
     __NR_mprotect | NOEXEC,  //
+#ifdef __NR_arch_prctl
     __NR_arch_prctl,         //
+#endif
     __NR_migrate_pages,      //
     __NR_sync_file_range,    //
     __NR_set_tid_address,    //
     __NR_membarrier,         //
     __NR_nanosleep,          //
+#ifdef __NR_pipe
     __NR_pipe,               //
+#endif
     __NR_pipe2,              //
+#ifdef __NR_poll
     __NR_poll,               //
+#endif
     __NR_ppoll,              //
+#ifdef __NR_select
     __NR_select,             //
+#endif
     __NR_pselect6,           //
+#ifdef __NR_epoll_create
     __NR_epoll_create,       //
+#endif
     __NR_epoll_create1,      //
     __NR_epoll_ctl,          //
+#ifdef __NR_epoll_wait
     __NR_epoll_wait,         //
+#endif
     __NR_epoll_pwait,        //
     __NR_epoll_pwait2,       //
     __NR_recvfrom,           //
     __NR_sendto | ADDRLESS,  //
     __NR_ioctl | RESTRICT,   //
+#ifdef __NR_alarm
     __NR_alarm,              //
+#endif
+#ifdef __NR_pause
     __NR_pause,              //
+#endif
     __NR_shutdown,           //
+#ifdef __NR_eventfd
     __NR_eventfd,            //
+#endif
     __NR_eventfd2,           //
+#ifdef __NR_signalfd
     __NR_signalfd,           //
+#endif
     __NR_signalfd4,          //
     __NR_rt_sigaction,       //
     __NR_sigaltstack,        //
@@ -597,71 +703,119 @@ static const uint16_t kPledgeFlock[] = {
 static const uint16_t kPledgeRpath[] = {
     __NR_chdir,              //
     __NR_getcwd,             //
+#ifdef __NR_open
     __NR_open | READONLY,    //
+#endif
     __NR_openat | READONLY,  //
+#ifdef __NR_stat
     __NR_stat,               //
+#endif
+#ifdef __NR_lstat
     __NR_lstat,              //
+#endif
     __NR_fstat,              //
     __NR_newfstatat,         //
+#ifdef __NR_access
     __NR_access,             //
+#endif
     __NR_faccessat,          //
     __NR_faccessat2,         //
+#ifdef __NR_readlink
     __NR_readlink,           //
+#endif
     __NR_readlinkat,         //
     __NR_statfs,             //
     __NR_fstatfs,            //
+#ifdef __NR_getdents
     __NR_getdents,           //
+#endif
     __NR_getdents64,         //
 };
 
 static const uint16_t kPledgeWpath[] = {
     __NR_getcwd,              //
+#ifdef __NR_open
     __NR_open | WRITEONLY,    //
+#endif
     __NR_openat | WRITEONLY,  //
+#ifdef __NR_stat
     __NR_stat,                //
+#endif
     __NR_fstat,               //
+#ifdef __NR_lstat
     __NR_lstat,               //
+#endif
     __NR_newfstatat,          //
+#ifdef __NR_access
     __NR_access,              //
+#endif
     __NR_truncate,            //
     __NR_faccessat,           //
     __NR_faccessat2,          //
     __NR_readlinkat,          //
+#ifdef __NR_chmod
     __NR_chmod | NOBITS,      //
+#endif
     __NR_fchmod | NOBITS,     //
     __NR_fchmodat | NOBITS,   //
 };
 
 static const uint16_t kPledgeCpath[] = {
+#ifdef __NR_open
     __NR_open | CREATONLY,    //
+#endif
     __NR_openat | CREATONLY,  //
+#ifdef __NR_creat
     __NR_creat | RESTRICT,    //
+#endif
+#ifdef __NR_rename
     __NR_rename,              //
+#endif
     __NR_renameat,            //
     __NR_renameat2,           //
+#ifdef __NR_link
     __NR_link,                //
+#endif
     __NR_linkat,              //
+#ifdef __NR_symlink
     __NR_symlink,             //
+#endif
     __NR_symlinkat,           //
+#ifdef __NR_rmdir
     __NR_rmdir,               //
+#endif
+#ifdef __NR_unlink
     __NR_unlink,              //
+#endif
     __NR_unlinkat,            //
+#ifdef __NR_mkdir
     __NR_mkdir,               //
+#endif
     __NR_mkdirat,             //
 };
 
 static const uint16_t kPledgeDpath[] = {
+#ifdef __NR_mknod
     __NR_mknod,    //
+#endif
     __NR_mknodat,  //
 };
 
 static const uint16_t kPledgeFattr[] = {
+#ifdef __NR_chmod
     __NR_chmod | NOBITS,     //
+#endif
     __NR_fchmod | NOBITS,    //
     __NR_fchmodat | NOBITS,  //
+#ifdef __NR_utime
     __NR_utime,              //
+#endif
+#ifdef __NR_utimes
     __NR_utimes,             //
+#endif
+#ifdef __NR_futimesat
     __NR_futimesat,          //
+#endif
     __NR_utimensat,          //
 };
 
@@ -722,8 +876,12 @@ static const uint16_t kPledgeSendfd[] = {
 };
 
 static const uint16_t kPledgeProc[] = {
+#ifdef __NR_fork
     __NR_fork,                    //
+#endif
+#ifdef __NR_vfork
     __NR_vfork,                   //
+#endif
     __NR_clone | RESTRICT,        //
     __NR_kill,                    //
     __NR_tgkill,                  //
@@ -760,9 +918,13 @@ static const uint16_t kPledgeId[] = {
 };
 
 static const uint16_t kPledgeChown[] = {
+#ifdef __NR_chown
     __NR_chown,     //
+#endif
     __NR_fchown,    //
+#ifdef __NR_lchown
     __NR_lchown,    //
+#endif
     __NR_fchownat,  //
 };
 
@@ -800,8 +962,12 @@ static const uint16_t kPledgeVminfo[] = {
 // permissions. pledge() alone (without unveil() too) offers very
 // little security here. consider using them together.
 static const uint16_t kPledgeTmppath[] = {
+#ifdef __NR_lstat
     __NR_lstat,     //
+#endif
+#ifdef __NR_unlink
     __NR_unlink,    //
+#endif
     __NR_unlinkat,  //
 };
 
@@ -1444,6 +1610,7 @@ static privileged void AllowMprotectNoexec(struct Filter *f) {
   AppendFilter(f, PLEDGE(fragment));
 }
 
+#ifdef __NR_open
 // The open() system call is permitted only when
 //
 //   - (flags & O_ACCMODE) == O_RDONLY
@@ -1469,6 +1636,7 @@ static privileged void AllowOpenReadonly(struct Filter *f) {
   };
   AppendFilter(f, PLEDGE(fragment));
 }
+#endif
 
 // The open() system call is permitted only when
 //
@@ -1496,6 +1664,7 @@ static privileged void AllowOpenatReadonly(struct Filter *f) {
   AppendFilter(f, PLEDGE(fragment));
 }
 
+#ifdef __NR_open
 // The open() system call is permitted only when
 //
 //   - (flags & O_ACCMODE) == O_WRONLY
@@ -1522,6 +1691,7 @@ static privileged void AllowOpenWriteonly(struct Filter *f) {
   };
   AppendFilter(f, PLEDGE(fragment));
 }
+#endif
 
 // The open() system call is permitted only when
 //
@@ -1550,6 +1720,7 @@ static privileged void AllowOpenatWriteonly(struct Filter *f) {
   AppendFilter(f, PLEDGE(fragment));
 }
 
+#ifdef __NR_open
 // If the flags parameter of open() has one of:
 //
 //   - O_CREAT     (000000100)
@@ -1579,6 +1750,7 @@ static privileged void AllowOpenCreatonly(struct Filter *f) {
   };
   AppendFilter(f, PLEDGE(fragment));
 }
+#endif
 
 // If the flags parameter of openat() has one of:
 //
@@ -1610,6 +1782,7 @@ static privileged void AllowOpenatCreatonly(struct Filter *f) {
   AppendFilter(f, PLEDGE(fragment));
 }
 
+#ifdef __NR_creat
 // Then the mode parameter must not have:
 //
 //   - S_ISVTX (01000 sticky)
@@ -1628,6 +1801,7 @@ static privileged void AllowCreatRestrict(struct Filter *f) {
   };
   AppendFilter(f, PLEDGE(fragment));
 }
+#endif
 
 // The second argument of fcntl() must be one of:
 //
@@ -1804,6 +1978,7 @@ static privileged void AllowPrctlStdio(struct Filter *f) {
   AppendFilter(f, PLEDGE(fragment));
 }
 
+#ifdef __NR_chmod
 // The mode parameter of chmod() can't have the following:
 //
 //   - S_ISVTX (01000 sticky)
@@ -1822,6 +1997,7 @@ static privileged void AllowChmodNobits(struct Filter *f) {
   };
   AppendFilter(f, PLEDGE(fragment));
 }
+#endif
 
 // The mode parameter of fchmod() can't have the following:
 //
@@ -1932,9 +2108,11 @@ static privileged void AppendPledge(struct Filter *f,   //
       case __NR_mprotect | NOEXEC:
         AllowMprotectNoexec(f);
         break;
+#ifdef __NR_chmod
       case __NR_chmod | NOBITS:
         AllowChmodNobits(f);
         break;
+#endif
       case __NR_fchmod | NOBITS:
         AllowFchmodNobits(f);
         break;
@@ -1944,21 +2122,27 @@ static privileged void AppendPledge(struct Filter *f,   //
       case __NR_prctl | STDIO:
         AllowPrctlStdio(f);
         break;
+#ifdef __NR_open
       case __NR_open | CREATONLY:
         AllowOpenCreatonly(f);
         break;
+#endif
       case __NR_openat | CREATONLY:
         AllowOpenatCreatonly(f);
         break;
+#ifdef __NR_open
       case __NR_open | READONLY:
         AllowOpenReadonly(f);
         break;
+#endif
       case __NR_openat | READONLY:
         AllowOpenatReadonly(f);
         break;
+#ifdef __NR_open
       case __NR_open | WRITEONLY:
         AllowOpenWriteonly(f);
         break;
+#endif
       case __NR_openat | WRITEONLY:
         AllowOpenatWriteonly(f);
         break;
@@ -1968,9 +2152,11 @@ static privileged void AppendPledge(struct Filter *f,   //
       case __NR_getsockopt | RESTRICT:
         AllowGetsockoptRestrict(f);
         break;
+#ifdef __NR_creat
       case __NR_creat | RESTRICT:
         AllowCreatRestrict(f);
         break;
+#endif
       case __NR_fcntl | STDIO:
         AllowFcntlStdio(f);
         break;
