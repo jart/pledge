@@ -1142,7 +1142,7 @@ static privileged void KillThisThread(void) {
                : "=a"(ax)
                : "0"(__NR_tkill), "D"(GetTid()), "S"(Sigabrt)
                : "rcx", "r11", "memory");*/
-  ax = tkill(gettid(), SIGABRT);
+  ax = syscall(__NR_tkill, gettid(), SIGABRT);
   SigProcMask(Sig_Setmask, 0, 0);
   /*asm volatile("syscall"
                : // no outputs
