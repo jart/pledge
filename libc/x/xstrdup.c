@@ -17,7 +17,6 @@
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
 #include "libc/intrin/likely.h"
-// #include "libc/mem/mem.h"
 #include "libc/str/str.h"
 #include "libc/x/x.h"
 

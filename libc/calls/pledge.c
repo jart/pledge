@@ -16,28 +16,13 @@
 │ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR             │
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
-#include "libc/calls/calls.h"
-#include "libc/calls/pledge.internal.h"
-/*
-#include "libc/calls/state.internal.h"
-#include "libc/calls/syscall-sysv.internal.h"
-*/
-#include "libc/dce.h"
-/*
-#include "libc/errno.h"
-*/
-#include "libc/intrin/promises.internal.h"
-/*
-#include "libc/intrin/strace.internal.h"
-#include "libc/nexgen32e/vendor.internal.h"
-*/
-#include "libc/runtime/runtime.h"
-/*
-#include "libc/sysv/errfuns.h"
-*/
-
 #include <errno.h>
 #include <unistd.h>
+#include "libc/calls/calls.h"
+#include "libc/calls/pledge.internal.h"
+#include "libc/dce.h"
+#include "libc/intrin/promises.internal.h"
+#include "libc/runtime/runtime.h"
 
 /**
  * Permits system operations, e.g.

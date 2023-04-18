@@ -135,7 +135,7 @@
 #define thatispacked
 #endif
 
-#define notpossible abort()
+#define notpossible __builtin_trap()
 
 #if !defined(__STRICT_ANSI__) &&      \
     (__has_attribute(__noreturn__) || \

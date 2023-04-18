@@ -16,21 +16,9 @@
 │ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR             │
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
-#include "libc/calls/calls.h"
-/*
-#include "libc/calls/sched-sysv.internal.h"
-#include "libc/calls/struct/cpuset.h"
-#include "libc/calls/weirdtypes.h"
-#include "libc/dce.h"
-#include "libc/macros.internal.h"
-#include "libc/nt/accounting.h"
-#include "libc/nt/dll.h"
-#include "libc/nt/struct/systeminfo.h"
-#include "libc/nt/systeminfo.h"
-*/
-#include "libc/runtime/runtime.h"
-
 #include <sched.h>
+#include "libc/calls/calls.h"
+#include "libc/runtime/runtime.h"
 
 static unsigned _getcpucount_linux(void) {
   cpu_set_t s = {0};
