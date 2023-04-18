@@ -16,32 +16,6 @@
 │ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR             │
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
-/*
-#include "ape/sections.internal.h"
-#include "libc/calls/calls.h"
-*/
-#include "libc/calls/pledge.internal.h"
-/*
-#include "libc/calls/struct/bpf.h"
-#include "libc/calls/struct/filter.h"
-#include "libc/calls/struct/seccomp.h"
-#include "libc/calls/struct/sigaction.h"
-#include "libc/calls/syscall_support-sysv.internal.h"
-#include "libc/intrin/bsr.h"
-*/
-#include "libc/intrin/likely.h"
-#include "libc/intrin/promises.internal.h"
-#include "libc/macros.internal.h"
-#include "libc/runtime/runtime.h"
-#include "libc/runtime/stack.h"
-/*
-#include "libc/sysv/consts/audit.h"
-#include "libc/sysv/consts/nrlinux.h"
-#include "libc/sysv/consts/o.h"
-#include "libc/sysv/consts/pr.h"
-#include "libc/sysv/consts/prot.h"
-*/
-
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/filter.h>
@@ -54,6 +28,12 @@
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include "libc/calls/pledge.internal.h"
+#include "libc/intrin/likely.h"
+#include "libc/intrin/promises.internal.h"
+#include "libc/macros.internal.h"
+#include "libc/runtime/runtime.h"
+#include "libc/runtime/stack.h"
 
 /**
  * @fileoverview OpenBSD pledge() Polyfill Payload for GNU/Systemd
@@ -93,6 +73,16 @@
 
 #define PLEDGE(pledge) pledge, ARRAYLEN(pledge)
 #define OFF(f)         offsetof(struct seccomp_data, f)
+#define ROUNDUP(X, K)  (((X) + (K)-1) & -(K))
+#define _bsrl(x)       (__builtin_clzll(x) ^ 63)
+
+#ifdef __x86_64__
+#define MC_RESULT gregs[REG_RAX]
+#elif defined(__aarch64__)
+#define MC_RESULT regs[0]
+#else
+#error "unsupported architecture"
+#endif
 
 struct Filter {
   size_t n;
@@ -1041,114 +1031,38 @@ static privileged char *FixCpy(char p[17], uint64_t x, int k) {
   return p;
 }
 
-// TODO: Fix this up later
-#if 0
 static privileged char *HexCpy(char p[17], uint64_t x) {
   return FixCpy(p, x, ROUNDUP(x ? _bsrl(x) + 1 : 1, 4));
-}
-
-static privileged int GetPid(void) {
-  int ax;
-  /*asm volatile("syscall"
-               : "=a"(ax)
-               : "0"(__NR_getpid)
-               : "rcx", "r11", "memory");*/
-  ax = syscall(__NR_getpid);
-  return ax;
-}
-
-static privileged int GetTid(void) {
-  int ax;
-  /*asm volatile("syscall"
-               : "=a"(ax)
-               : "0"(__NR_gettid)
-               : "rcx", "r11", "memory");*/
-  ax = syscall(__NR_gettid);
-  return ax;
 }
 
 static privileged void Log(const char *s, ...) {
   int ax;
   va_list va;
   va_start(va, s);
-  do {
-      /*asm volatile("syscall"
-                 : "=a"(ax)
-                 : "0"(__NR_write), "D"(2), "S"(s), "d"(StrLen(s))
-                 : "rcx", "r11", "memory");*/
-      ax = syscall(__NR_write, 2, s, strlen(s));
-  } while ((s = va_arg(va, const char *)));
+  do ax = write(2, s, strlen(s));
+  while ((s = va_arg(va, const char *)));
   va_end(va);
 }
 
 static privileged int Prctl(int op, long a, void *b, long c, long d) {
-  int rc;
-  /*asm volatile("mov\t%5,%%r10\n\t"
-               "mov\t%6,%%r8\n\t"
-               "syscall"
-               : "=a"(rc)
-               : "0"(__NR_prctl), "D"(op), "S"(a), "d"(b), "g"(c), "g"(d)
-               : "rcx", "r8", "r10", "r11", "memory");*/
-  rc = syscall(__NR_prctl, op, a, b, c, d);
-  return rc;
-}
-
-static privileged int SigAction(int sig, struct sigaction *act,
-                                struct sigaction *old) {
-  int ax;
-  //act->sa_flags |= Sa_Restorer;
-  //act->sa_restorer = &__restore_rt;
-  /*asm volatile("mov\t%5,%%r10\n\t"
-               "syscall"
-               : "=a"(ax)
-               : "0"(__NR_sigaction), "D"(sig), "S"(act), "d"(old), "g"(8)
-               : "rcx", "r10", "r11", "memory");*/
-  ax = sigaction(sig, act, old);
-  return ax;
-}
-
-static privileged int SigProcMask(int how, int64_t set, int64_t *old) {
-  int ax;
-  /*asm volatile("mov\t%5,%%r10\n\t"
-               "syscall"
-               : "=a"(ax)
-               : "0"(__NR_sigprocmask), "D"(how), "S"(&set), "d"(old),
-                 "g"(8)
-               : "rcx", "r10", "r11", "memory");*/
-  ax = syscall(__NR_rt_sigprocmask, how, set, old);
-  return ax;
+  return syscall(__NR_prctl, op, a, b, c, d);
 }
 
 static privileged void KillThisProcess(void) {
-  int ax;
-  SigAction(Sigabrt, &(struct sigaction){0}, 0);
-  SigProcMask(Sig_Setmask, -1, 0);
-  asm volatile("syscall"
-               : "=a"(ax)
-               : "0"(__NR_kill), "D"(getpid()), "S"(Sigabrt)
-               : "rcx", "r11", "memory");
-  SigProcMask(Sig_Setmask, 0, 0);
-  asm volatile("syscall"
-               : "=a"(ax)
-               : "0"(__NR_exit_group), "D"(128 + Sigabrt)
-               : "rcx", "r11", "memory");
+  abort();
 }
 
 static privileged void KillThisThread(void) {
   int ax;
-  SigAction(Sigabrt, &(struct sigaction){0}, 0);
-  SigProcMask(Sig_Setmask, -1, 0);
-  /*asm volatile("syscall"
-               : "=a"(ax)
-               : "0"(__NR_tkill), "D"(GetTid()), "S"(Sigabrt)
-               : "rcx", "r11", "memory");*/
-  ax = syscall(__NR_tkill, gettid(), SIGABRT);
-  SigProcMask(Sig_Setmask, 0, 0);
-  /*asm volatile("syscall"
-               : // no outputs
-               : "a"(__NR_exit), "D"(128 + Sigabrt)
-               : "rcx", "r11", "memory");*/
-  _Exit(128 + SIGABRT);
+  sigset_t full, empty;
+  sigfillset(&full);
+  sigemptyset(&empty);
+  sigaction(Sigabrt, &(struct sigaction){0}, 0);
+  sigprocmask(Sig_Setmask, &full, 0);
+  ax = syscall(__NR_tkill, syscall(__NR_gettid), SIGABRT);
+  sigprocmask(Sig_Setmask, &empty, 0);
+  syscall(__NR_exit, 128 + SIGABRT);
+  abort();
 }
 
 static privileged const char *GetSyscallName(uint16_t n) {
@@ -1161,7 +1075,7 @@ static privileged const char *GetSyscallName(uint16_t n) {
   return "unknown";
 }
 
-static privileged int HasSyscall(struct Pledges *p, uint16_t n) {
+static privileged int HasSyscall(const struct Pledges *p, uint16_t n) {
   int i;
   for (i = 0; i < p->len; ++i) {
     if (p->syscalls[i] == n) {
@@ -1179,20 +1093,18 @@ static privileged void OnSigSys(int sig, siginfo_t *si, void *vctx) {
   char ord[17], rip[17];
   int i, ok, mode = si->si_errno;
   ucontext_t *ctx = vctx;
-  ctx->uc_mcontext.rax = -Eperm;
+  ctx->uc_mcontext.MC_RESULT = -Eperm;
   FixCpy(ord, si->si_syscall, 12);
-  HexCpy(rip, ctx->uc_mcontext.rip);
   for (found = i = 0; i < ARRAYLEN(kPledge); ++i) {
     if (HasSyscall(kPledge + i, si->si_syscall)) {
       Log("error: pledge ", kPledge[i].name, " for ",
-          GetSyscallName(si->si_syscall), " (ord=", ord, " rip=", rip, ")\n",
-          0);
+          GetSyscallName(si->si_syscall), " (ord=0x", ord, ")\n", 0);
       found = true;
     }
   }
   if (!found) {
     Log("error: bad syscall (", GetSyscallName(si->si_syscall), " ord=", ord,
-        " rip=", rip, ")\n", 0);
+        ")\n", 0);
   }
   switch (mode & PLEDGE_PENALTY_MASK) {
     case PLEDGE_PENALTY_KILL_PROCESS:
@@ -1214,11 +1126,10 @@ static privileged void MonitorSigSys(void) {
   };
   // we block changing sigsys once pledge is installed
   // so we aren't terribly concerned if this will fail
-  if (SigAction(Sigsys, &sa, 0) == -1) {
+  if (sigaction(Sigsys, &sa, 0) == -1) {
     notpossible;
   }
 }
-#endif
 
 static privileged void AppendFilter(struct Filter *f,
                                     const struct sock_filter *p, size_t n) {
@@ -2246,9 +2157,7 @@ privileged int sys_pledge_linux(unsigned long ipromises, int mode) {
     // if we haven't pledged exec, then we can monitor SIGSYS
     // and print a helpful error message when things do break
     // to avoid tls / static memory, we embed mode within bpf
-#if 0
     MonitorSigSys();
-#endif
     AllowMonitor(&f);
     sf[0].k = SECCOMP_RET_TRAP | (mode & SECCOMP_RET_DATA);
     AppendFilter(&f, PLEDGE(sf));
