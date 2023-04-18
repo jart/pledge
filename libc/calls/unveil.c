@@ -60,27 +60,32 @@
 #include "libc/thread/tls.h"
 */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/prctl.h>
-#include <linux/seccomp.h>
-#include <linux/filter.h>
-#include <sys/syscall.h>
-#include <libgen.h>
-#include <string.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <libgen.h>
 #include <limits.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/prctl.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 #define OFF(f) offsetof(struct seccomp_data, f)
+
+#ifndef LANDLOCK_ACCESS_FS_REFER
+#define LANDLOCK_ACCESS_FS_REFER 0
+#endif
 
 #define UNVEIL_READ                                             \
   (LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR | \
    LANDLOCK_ACCESS_FS_REFER)
-#define UNVEIL_WRITE (LANDLOCK_ACCESS_FS_WRITE_FILE | LANDLOCK_ACCESS_FS_TRUNCATE)
-#define UNVEIL_EXEC  (LANDLOCK_ACCESS_FS_EXECUTE)
+#define UNVEIL_WRITE \
+  (LANDLOCK_ACCESS_FS_WRITE_FILE | LANDLOCK_ACCESS_FS_TRUNCATE)
+#define UNVEIL_EXEC (LANDLOCK_ACCESS_FS_EXECUTE)
 #define UNVEIL_CREATE                                             \
   (LANDLOCK_ACCESS_FS_MAKE_CHAR | LANDLOCK_ACCESS_FS_MAKE_DIR |   \
    LANDLOCK_ACCESS_FS_MAKE_REG | LANDLOCK_ACCESS_FS_MAKE_SOCK |   \
@@ -92,7 +97,8 @@
    LANDLOCK_ACCESS_FS_EXECUTE)
 
 static struct sock_filter kUnveilBlacklistAbiVersionBelow3[] = {
-#if 0 // Should we have this ? It certainly means things don't work on other architectures than x86-64 as-is...
+#if 0  // Should we have this ? It certainly means things don't work on other
+       // architectures than x86-64 as-is...
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(arch)),
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0),
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
@@ -119,7 +125,8 @@ static struct sock_filter kUnveilBlacklistLatestAbi[] = {
 static int landlock_abi_version;
 
 __attribute__((__constructor__)) void init_landlock_version() {
-  landlock_abi_version = landlock_create_ruleset(0, 0, LANDLOCK_CREATE_RULESET_VERSION);
+  landlock_abi_version =
+      landlock_create_ruleset(0, 0, LANDLOCK_CREATE_RULESET_VERSION);
 }
 
 /**
@@ -147,8 +154,8 @@ static int unveil_final(void) {
   };
   if (landlock_abi_version < 3) {
     sandbox = (struct sock_fprog){
-      .filter = kUnveilBlacklistAbiVersionBelow3,
-      .len = ARRAYLEN(kUnveilBlacklistAbiVersionBelow3),
+        .filter = kUnveilBlacklistAbiVersionBelow3,
+        .len = ARRAYLEN(kUnveilBlacklistAbiVersionBelow3),
     };
   }
   e = errno;
@@ -217,8 +224,8 @@ int sys_unveil_linux(const char *path, const char *permissions) {
 
   if (!State.fd && (rc = unveil_init()) == -1) return rc;
   if ((path && !permissions) || (!path && permissions)) {
-      errno = EINVAL;
-      return -1;
+    errno = EINVAL;
+    return -1;
   }
   if (!path && !permissions) return unveil_final();
   struct landlock_path_beneath_attr pb = {0};
@@ -248,8 +255,8 @@ int sys_unveil_linux(const char *path, const char *permissions) {
   // it isn't valid, e.g. /dev/stdin -> /proc/2834/fd/pipe:[51032], so
   // we'll need to work around this, by adding the path which is valid
   if (strlen(path) + 1 > PATH_MAX) {
-      errno = ENAMETOOLONG;
-      return -1;
+    errno = ENAMETOOLONG;
+    return -1;
   }
   last = path;
   next = path;
@@ -427,7 +434,7 @@ int unveil(const char *path, const char *permissions) {
   /*if (IsGenuineBlink()) {
     rc = 0;  // blink doesn't support landlock
   } else if (IsLinux()) {*/
-    rc = sys_unveil_linux(path, permissions);
+  rc = sys_unveil_linux(path, permissions);
   /*} else {
     abort();
     rc = sys_unveil(path, permissions);
@@ -436,6 +443,6 @@ int unveil(const char *path, const char *permissions) {
     errno = e;
     rc = 0;
   }
-  //STRACE("unveil(%#s, %#s) → %d% m", path, permissions, rc);
+  // STRACE("unveil(%#s, %#s) → %d% m", path, permissions, rc);
   return rc;
 }

@@ -77,23 +77,23 @@
 #include "third_party/getopt/getopt.h"
 */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <poll.h>
-#include <sys/prctl.h>
-#include <sys/fsuid.h>
-#include <sys/resource.h>
-#include <sched.h>
-#include <linux/sched.h>
-#include <linux/ioprio.h>
-#include <sys/sysinfo.h>
-#include <string.h>
-#include <sys/param.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
+#include <linux/ioprio.h>
+#include <linux/sched.h>
+#include <poll.h>
+#include <sched.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/fsuid.h>
+#include <sys/param.h>
+#include <sys/prctl.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/sysinfo.h>
+#include <unistd.h>
 
 // MANUALLY TESTED BY RUNNING
 //
@@ -107,7 +107,7 @@ STATIC_YOINK("zip_uri_support");
 
 #define USAGE \
   "\
-usage: pledge.com [-hnN] PROG ARGS...\n\
+usage: pledge [-hnN] PROG ARGS...\n\
   -h              show help\n\
   -g GID          call setgid()\n\
   -u UID          call setuid()\n\
@@ -148,8 +148,8 @@ usage: pledge.com [-hnN] PROG ARGS...\n\
      - vminfo: allows /proc/stat, /proc/self/maps, etc.\n\
      - tmppath: allows /tmp, $TMPPATH, lstat, unlink\n\
 \n\
-pledge.com v1.8\n\
-copyright 2022 justine alexandra roberts tunney\n\
+pledge v1.8\n\
+copyright 2023 justine alexandra roberts tunney\n\
 notice licenses are embedded in the binary\n\
 https://twitter.com/justinetunney\n\
 https://linkedin.com/in/jtunney\n\
@@ -309,7 +309,9 @@ void NormalizeFileDescriptors(void) {
   int e, i, n, fd;
   n = GetPollMaxFds();
   e = errno;
-  closefrom(3);  // more secure if linux 5.9+
+  for (i = 3; i < 100; ++i) {
+    close(i);
+  }
   errno = e;
   for (i = 0; i < n; ++i) {
     pfds[i].fd = i;
@@ -713,7 +715,7 @@ int main(int argc, char *argv[]) {
   }
 
   // figure out where we want the dso
-#if 0 // Implement this later
+#if 0  // Implement this later
   if (_IsDynamicExecutable(prog)) {
     isdynamic = true;
     if ((s = getenv("TMPDIR")) ||  //
