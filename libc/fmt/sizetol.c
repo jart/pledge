@@ -17,13 +17,10 @@
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
 #include "libc/fmt/conv.h"
-/*
-#include "libc/fmt/fmt.h"
+// #include "libc/fmt/fmt.h"
 #include "libc/str/str.h"
-#include "libc/sysv/errfuns.h"
-*/
+// #include "libc/sysv/errfuns.h"
 
-#include <ctype.h>
 #include <errno.h>
 
 static int GetExponent(int c) {

@@ -36,10 +36,8 @@
 #include "libc/sysv/errfuns.h"
 */
 
-#include <stdlib.h>
-#include <unistd.h>
 #include <errno.h>
-#include <stdbool.h>
+#include <unistd.h>
 
 /**
  * Permits system operations, e.g.
@@ -252,38 +250,21 @@
 int pledge(const char *promises, const char *execpromises) {
   int e, rc;
   unsigned long ipromises, iexecpromises;
-  /*if (IsGenuineBlink()) {
-    rc = 0;  // blink doesn't support seccomp
-  } else */if (!ParsePromises(promises, &ipromises) &&
-             !ParsePromises(execpromises, &iexecpromises)) {
-    if (IsLinux()) {
-      // copy exec and execnative from promises to execpromises
-      iexecpromises = ~(~iexecpromises | (~ipromises & (1ul << PROMISE_EXEC)));
-      // if bits are missing in execpromises that exist in promises
-      // then execpromises wouldn't be a monotonic access reduction
-      // this check only matters when exec / execnative are allowed
-      if ((ipromises & ~iexecpromises) &&
-          (~ipromises & (1ul << PROMISE_EXEC))) {
-        //STRACE("execpromises must be a subset of promises");
-        errno = EINVAL;
-        rc = -1;
-      } else {
-        rc = sys_pledge_linux(ipromises, __pledge_mode);
-        if (rc > -4096u) errno = -rc, rc = -1;
-      }
+  if (!ParsePromises(promises, &ipromises) &&
+      !ParsePromises(execpromises, &iexecpromises)) {
+    // copy exec and execnative from promises to execpromises
+    iexecpromises = ~(~iexecpromises | (~ipromises & (1ul << PROMISE_EXEC)));
+    // if bits are missing in execpromises that exist in promises
+    // then execpromises wouldn't be a monotonic access reduction
+    // this check only matters when exec / execnative are allowed
+    if ((ipromises & ~iexecpromises) && (~ipromises & (1ul << PROMISE_EXEC))) {
+      errno = EINVAL;
+      rc = -1;
     } else {
-      abort();
-      /*
-      e = errno;
-      rc = sys_pledge(promises, execpromises);
-      if (rc && errno == ENOSYS) {
-        errno = e;
-        rc = 0;
-      }
-      */
+      rc = sys_pledge_linux(ipromises, __pledge_mode);
+      if (rc > -4096u) errno = -rc, rc = -1;
     }
-    if (!rc && true/*!__vforked*/ &&
-        (IsOpenbsd() || (IsLinux() && getpid() == gettid()))) {
+    if (!rc && (getpid() == gettid())) {
       __promises = ipromises;
       __execpromises = iexecpromises;
     }
@@ -291,6 +272,5 @@ int pledge(const char *promises, const char *execpromises) {
     errno = EINVAL;
     rc = -1;
   }
-  //STRACE("pledge(%#s, %#s) → %d% m", promises, execpromises, rc);
   return rc;
 }

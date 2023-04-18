@@ -1,6 +1,8 @@
 #ifndef PLEDGE_LIBC_INTEGRAL_C_H_
 #define PLEDGE_LIBC_INTEGRAL_C_H_
 
+#include <stdarg.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #ifndef __STRICT_ANSI__
@@ -17,7 +19,7 @@
 #define paramsnonnull(opt_1idxs)
 #endif
 
-#define libcesque   dontthrow nocallback
+#define libcesque dontthrow nocallback
 
 #if defined(__cplusplus) && !defined(__STRICT_ANSI__) && \
     (__has_attribute(dontthrow) ||                       \
@@ -131,14 +133,6 @@
 #define thatispacked __attribute__((__packed__))
 #else
 #define thatispacked
-#endif
-
-#ifndef __STRICT_ANSI__
-#define LIKELY(x)   __builtin_expect(!!(x), 1)
-#define UNLIKELY(x) __builtin_expect(!!(x), 0)
-#else
-#define LIKELY(x)
-#define UNLIKELY(x)
 #endif
 
 #define notpossible abort()

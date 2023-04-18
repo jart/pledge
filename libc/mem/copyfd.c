@@ -17,14 +17,12 @@
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
 #include "libc/calls/calls.h"
-/*
-#include "libc/errno.h"
-#include "libc/mem/mem.h"
-*/
+// #include "libc/errno.h"
+// #include "libc/mem/mem.h"
 
+#include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <errno.h>
 
 #define CHUNK 32768
 

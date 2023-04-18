@@ -68,85 +68,11 @@ int classifypath(const char *s) {
   if (s) {
     switch (s[0]) {
       case 0:  // ""
-        return 0;
       default:
-        //if (!SupportsWindows()) {
-          return 0;
-        //}
-        if (((((s[0] == 'a' || s[0] == 'A') &&    // aux
-               (s[1] == 'u' || s[1] == 'U') &&    //
-               (s[2] == 'x' || s[2] == 'X')) ||   //
-              ((s[0] == 'p' || s[0] == 'P') &&    // prn
-               (s[1] == 'r' || s[1] == 'R') &&    //
-               (s[2] == 'n' || s[2] == 'N')) ||   //
-              ((s[0] == 'n' || s[0] == 'N') &&    // nul
-               (s[1] == 'u' || s[1] == 'U') &&    //
-               (s[2] == 'l' || s[2] == 'L')) ||   //
-              ((s[0] == 'c' || s[0] == 'C') &&    // con
-               (s[1] == 'o' || s[1] == 'O') &&    //
-               (s[2] == 'n' || s[2] == 'N'))) &&  //
-             !s[3]) ||
-            ((((s[0] == 'l' || s[0] == 'L') &&    // lpt
-               (s[1] == 'p' || s[1] == 'P') &&    //
-               (s[2] == 't' || s[2] == 'T')) ||   //
-              ((s[0] == 'c' || s[0] == 'C') &&    // com
-               (s[1] == 'o' || s[1] == 'O') &&    //
-               (s[2] == 'm' || s[2] == 'M'))) &&  //
-             ('1' <= s[3] && s[3] <= '9') &&      //
-             !s[4])) {
-          return _kPathDos | _kPathDev;
-        }
-        switch (s[1]) {
-          case ':':
-            switch (s[2]) {
-              case 0:   // c:
-              default:  // c:wut⋯
-                return _kPathDos;
-              case '/':   // c:/⋯
-              case '\\':  // c:\⋯
-                return _kPathAbs | _kPathDos;
-            }
-          default:
-            return 0;
-        }
+        return 0;
       case '\\':
-        /*if (SupportsWindows()) {
-          if (s[1] == '?' && s[2] == '?') {
-            if (!s[3]) {
-              return _kPathAbs | _kPathNt | _kPathRoot;  // \??\⋯
-            } else if (s[3] == '\\') {
-              return _kPathAbs | _kPathNt;  // \??\⋯
-            }
-          }
-        }*/
-        // fallthrough
       case '/':
-        //if (!SupportsWindows()) {
-          return _kPathAbs;
-        //}
-        switch (s[1]) {
-          case 0:   // /
-          default:  // /⋯
-            return _kPathAbs;
-          case '/':
-          case '\\':
-            switch (s[2]) {
-              case 0:   // //
-              default:  // //⋯
-                return _kPathAbs | _kPathWin;
-              case '.':
-              case '?':
-                switch (s[3]) {
-                  case 0:  // //? or //.
-                    return _kPathAbs | _kPathWin | _kPathDev | _kPathRoot;
-                  default:  // //?⋯ or //.⋯
-                    return _kPathAbs | _kPathWin;
-                  case '/':
-                  case '\\':  // //?/⋯ or //./⋯
-                    return _kPathAbs | _kPathWin | _kPathDev;
-                }
-            }
-        }
+        return _kPathAbs;
     }
   } else {
     return 0;

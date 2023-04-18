@@ -17,17 +17,13 @@
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
 #include "libc/dce.h"
-/*
-#include "libc/errno.h"
-*/
+// #include "libc/errno.h"
 #include "libc/runtime/runtime.h"
-/*
-#include "libc/sysv/consts/pr.h"
-*/
+// #include "libc/sysv/consts/pr.h"
 
-#include <sys/prctl.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <sys/prctl.h>
 
 privileged bool is_linux_2_6_23(void) {
   return prctl(PR_GET_SECCOMP) >= 0 || errno != EINVAL;

@@ -17,19 +17,13 @@
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
 #include "libc/calls/calls.h"
-/*
-#include "libc/calls/struct/stat.h"
-*/
+// #include "libc/calls/struct/stat.h"
 #include "libc/dce.h"
-/*
-#include "libc/errno.h"
-*/
+// #include "libc/errno.h"
 #include "libc/intrin/bits.h"
 #include "libc/intrin/safemacros.internal.h"
-/*
-#include "libc/intrin/strace.internal.h"
-#include "libc/log/libfatal.internal.h"
-*/
+// #include "libc/intrin/strace.internal.h"
+// #include "libc/log/libfatal.internal.h"
 #include "libc/runtime/runtime.h"
 #include "libc/str/str.h"
 /*
@@ -38,10 +32,9 @@
 #include "libc/sysv/errfuns.h"
 */
 
-#include <unistd.h>
-#include <sys/stat.h>
-#include <string.h>
 #include <errno.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 static bool IsExePath(const char *s, size_t n) {
   return n >= 4 && (READ32LE(s + n - 4) == READ32LE(".exe") ||

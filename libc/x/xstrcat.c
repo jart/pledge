@@ -19,11 +19,6 @@
 #include "libc/str/str.h"
 #include "libc/x/x.h"
 
-#include <string.h>
-#include <stdarg.h>
-#include <stdint.h>
-#include <stddef.h>
-
 /**
  * Concatenates strings / chars to newly allocated memory, e.g.
  *

@@ -20,9 +20,6 @@
 #include "libc/macros.internal.h"
 #include "libc/str/str.h"
 
-#include <strings.h>
-#include <string.h>
-
 static int FindPromise(const char *name) {
   int i;
   for (i = 0; i < ARRAYLEN(kPledge); ++i) {

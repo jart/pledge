@@ -28,8 +28,8 @@
 #include "libc/calls/struct/sigaction.h"
 #include "libc/calls/syscall_support-sysv.internal.h"
 #include "libc/intrin/bsr.h"
-#include "libc/intrin/likely.h"
 */
+#include "libc/intrin/likely.h"
 #include "libc/intrin/promises.internal.h"
 #include "libc/macros.internal.h"
 #include "libc/runtime/runtime.h"

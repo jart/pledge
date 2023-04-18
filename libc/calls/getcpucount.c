@@ -27,8 +27,8 @@
 #include "libc/nt/dll.h"
 #include "libc/nt/struct/systeminfo.h"
 #include "libc/nt/systeminfo.h"
-#include "libc/runtime/runtime.h"
 */
+#include "libc/runtime/runtime.h"
 
 #include <sched.h>
 

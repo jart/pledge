@@ -18,8 +18,6 @@
 ╚─────────────────────────────────────────────────────────────────────────────*/
 #include "libc/str/str.h"
 
-#include <string.h>
-
 /**
  * Returns true if s has suffix.
  *

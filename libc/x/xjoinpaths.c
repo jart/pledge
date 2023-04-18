@@ -21,8 +21,6 @@
 #include "libc/str/str.h"
 #include "libc/x/x.h"
 
-#include <string.h>
-
 /**
  * Joins paths, e.g.
  *

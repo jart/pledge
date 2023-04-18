@@ -19,10 +19,7 @@
 #include "libc/intrin/bits.h"
 #include "libc/str/path.h"
 #include "libc/str/str.h"
-//#include "libc/sysv/errfuns.h"
-
-
-#include <string.h>
+// #include "libc/sysv/errfuns.h"
 
 /**
  * Joins paths, e.g.

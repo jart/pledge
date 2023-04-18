@@ -76,10 +76,6 @@
 
 #define OFF(f) offsetof(struct seccomp_data, f)
 
-#ifndef LANDLOCK_ACCESS_FS_REFER
-#define LANDLOCK_ACCESS_FS_REFER 0
-#endif
-
 #define UNVEIL_READ                                             \
   (LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR | \
    LANDLOCK_ACCESS_FS_REFER)
@@ -98,7 +94,8 @@
 
 static struct sock_filter kUnveilBlacklistAbiVersionBelow3[] = {
 #if 0  // Should we have this ? It certainly means things don't work on other
-       // architectures than x86-64 as-is...
+       // architectures than x86-64 as-is... (TODO check this up later when
+       // relevant)
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(arch)),
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0),
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
