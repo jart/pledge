@@ -42,17 +42,18 @@
 #include "libc/sysv/consts/prot.h"
 */
 
-#include <signal.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
-#include <linux/seccomp.h>
-#include <linux/filter.h>
-#include <string.h>
-#include <stdarg.h>
-#include <errno.h>
-#include <stdbool.h>
+#include <unistd.h>
 
 /**
  * @fileoverview OpenBSD pledge() Polyfill Payload for GNU/Systemd
@@ -74,15 +75,15 @@
 #define Sa_Restorer 0x04000000
 #define Sa_Restart  0x10000000
 */
-#define Eperm EPERM
-#define Sigabrt SIGABRT
-#define Einval EINVAL
-#define Sigsys SIGSYS
-#define Enosys ENOSYS
+#define Eperm       EPERM
+#define Sigabrt     SIGABRT
+#define Einval      EINVAL
+#define Sigsys      SIGSYS
+#define Enosys      ENOSYS
 #define Sig_Setmask SIG_SETMASK
-#define Sa_Siginfo SA_SIGINFO
+#define Sa_Siginfo  SA_SIGINFO
 #define Sa_Restorer SA_RESTORER
-#define Sa_Restart SA_RESTART
+#define Sa_Restart  SA_RESTART
 
 #define SPECIAL   0xf000
 #define SELF      0x8000
@@ -113,433 +114,443 @@ static const struct thatispacked SyscallName {
   uint16_t n;
   const char *const s;
 } kSyscallName[] = {
-    {__NR_exit, "exit"},                                        //
-    {__NR_exit_group, "exit_group"},                            //
-    {__NR_read, "read"},                                        //
-    {__NR_write, "write"},                                      //
+    {__NR_exit, "exit"},              //
+    {__NR_exit_group, "exit_group"},  //
+    {__NR_read, "read"},              //
+    {__NR_write, "write"},            //
 #ifdef __NR_open
-    {__NR_open, "open"},                                        //
+    {__NR_open, "open"},  //
 #endif
-    {__NR_close, "close"},                                      //
+    {__NR_close, "close"},  //
 #ifdef __NR_stat
-    {__NR_stat, "stat"},                                        //
+    {__NR_stat, "stat"},  //
 #endif
-    {__NR_fstat, "fstat"},                                      //
+    {__NR_fstat, "fstat"},  //
 #ifdef __NR_lstat
-    {__NR_lstat, "lstat"},                                      //
+    {__NR_lstat, "lstat"},  //
 #endif
 #ifdef __NR_poll
-    {__NR_poll, "poll"},                                        //
+    {__NR_poll, "poll"},  //
 #endif
-    {__NR_ppoll, "ppoll"},                                      //
-    {__NR_brk, "brk"},                                          //
-    {__NR_rt_sigreturn, "sigreturn"},                           //
-    {__NR_lseek, "lseek"},                                      //
-    {__NR_mmap, "mmap"},                                        //
-    {__NR_msync, "msync"},                                      //
-    {__NR_mprotect, "mprotect"},                                //
-    {__NR_munmap, "munmap"},                                    //
-    {__NR_rt_sigaction, "sigaction"},                           //
-    {__NR_rt_sigprocmask, "sigprocmask"},                       //
-    {__NR_ioctl, "ioctl"},                                      //
-    {__NR_pread64, "pread"},                                    //
-    {__NR_pwrite64, "pwrite"},                                  //
-    {__NR_readv, "readv"},                                      //
-    {__NR_writev, "writev"},                                    //
+    {__NR_ppoll, "ppoll"},                 //
+    {__NR_brk, "brk"},                     //
+    {__NR_rt_sigreturn, "sigreturn"},      //
+    {__NR_lseek, "lseek"},                 //
+    {__NR_mmap, "mmap"},                   //
+    {__NR_msync, "msync"},                 //
+    {__NR_mprotect, "mprotect"},           //
+    {__NR_munmap, "munmap"},               //
+    {__NR_rt_sigaction, "sigaction"},      //
+    {__NR_rt_sigprocmask, "sigprocmask"},  //
+    {__NR_ioctl, "ioctl"},                 //
+    {__NR_pread64, "pread"},               //
+    {__NR_pwrite64, "pwrite"},             //
+    {__NR_readv, "readv"},                 //
+    {__NR_writev, "writev"},               //
 #ifdef __NR_access
-    {__NR_access, "access"},                                    //
+    {__NR_access, "access"},  //
 #endif
 #ifdef __NR_pipe
-    {__NR_pipe, "pipe"},                                        //
+    {__NR_pipe, "pipe"},  //
 #endif
 #ifdef __NR_select
-    {__NR_select, "select"},                                    //
+    {__NR_select, "select"},  //
 #endif
-    {__NR_pselect6, "pselect6"},                                //
-    {__NR_sched_yield, "sched_yield"},                          //
-    {__NR_mremap, "mremap"},                                    //
-    {__NR_mincore, "mincore"},                                  //
-    {__NR_madvise, "madvise"},                                  //
-    {__NR_shmget, "shmget"},                                    //
-    {__NR_shmat, "shmat"},                                      //
-    {__NR_shmctl, "shmctl"},                                    //
-    {__NR_dup, "dup"},                                          //
+    {__NR_pselect6, "pselect6"},        //
+    {__NR_sched_yield, "sched_yield"},  //
+    {__NR_mremap, "mremap"},            //
+    {__NR_mincore, "mincore"},          //
+    {__NR_madvise, "madvise"},          //
+    {__NR_shmget, "shmget"},            //
+    {__NR_shmat, "shmat"},              //
+    {__NR_shmctl, "shmctl"},            //
+    {__NR_dup, "dup"},                  //
 #ifdef __NR_dup2
-    {__NR_dup2, "dup2"},                                        //
+    {__NR_dup2, "dup2"},  //
 #endif
 #ifdef __NR_pause
-    {__NR_pause, "pause"},                                      //
+    {__NR_pause, "pause"},  //
 #endif
-    {__NR_nanosleep, "nanosleep"},                              //
-    {__NR_getitimer, "getitimer"},                              //
-    {__NR_setitimer, "setitimer"},                              //
+    {__NR_nanosleep, "nanosleep"},  //
+    {__NR_getitimer, "getitimer"},  //
+    {__NR_setitimer, "setitimer"},  //
 #ifdef __NR_alarm
-    {__NR_alarm, "alarm"},                                      //
+    {__NR_alarm, "alarm"},  //
 #endif
-    {__NR_getpid, "getpid"},                                    //
-    {__NR_sendfile, "sendfile"},                                //
-    {__NR_socket, "socket"},                                    //
-    {__NR_connect, "connect"},                                  //
-    {__NR_accept, "accept"},                                    //
-    {__NR_sendto, "sendto"},                                    //
-    {__NR_recvfrom, "recvfrom"},                                //
-    {__NR_sendmsg, "sendmsg"},                                  //
-    {__NR_recvmsg, "recvmsg"},                                  //
-    {__NR_shutdown, "shutdown"},                                //
-    {__NR_bind, "bind"},                                        //
-    {__NR_listen, "listen"},                                    //
-    {__NR_getsockname, "getsockname"},                          //
-    {__NR_getpeername, "getpeername"},                          //
-    {__NR_socketpair, "socketpair"},                            //
-    {__NR_setsockopt, "setsockopt"},                            //
-    {__NR_getsockopt, "getsockopt"},                            //
+    {__NR_getpid, "getpid"},            //
+    {__NR_sendfile, "sendfile"},        //
+    {__NR_socket, "socket"},            //
+    {__NR_connect, "connect"},          //
+    {__NR_accept, "accept"},            //
+    {__NR_sendto, "sendto"},            //
+    {__NR_recvfrom, "recvfrom"},        //
+    {__NR_sendmsg, "sendmsg"},          //
+    {__NR_recvmsg, "recvmsg"},          //
+    {__NR_shutdown, "shutdown"},        //
+    {__NR_bind, "bind"},                //
+    {__NR_listen, "listen"},            //
+    {__NR_getsockname, "getsockname"},  //
+    {__NR_getpeername, "getpeername"},  //
+    {__NR_socketpair, "socketpair"},    //
+    {__NR_setsockopt, "setsockopt"},    //
+    {__NR_getsockopt, "getsockopt"},    //
 #ifdef __NR_fork
-    {__NR_fork, "fork"},                                        //
+    {__NR_fork, "fork"},  //
 #endif
 #ifdef __NR_vfork
-    {__NR_vfork, "vfork"},                                      //
+    {__NR_vfork, "vfork"},  //
 #endif
-    {__NR_execve, "execve"},                                    //
-    {__NR_wait4, "wait4"},                                      //
-    {__NR_kill, "kill"},                                        //
-    {__NR_clone, "clone"},                                      //
-    {__NR_tkill, "tkill"},                                      //
-    {__NR_futex, "futex"},                                      //
-    {__NR_set_robust_list, "set_robust_list"},                  //
-    {__NR_get_robust_list, "get_robust_list"},                  //
-    {__NR_uname, "uname"},                                      //
-    {__NR_semget, "semget"},                                    //
-    {__NR_semop, "semop"},                                      //
-    {__NR_semctl, "semctl"},                                    //
-    {__NR_shmdt, "shmdt"},                                      //
-    {__NR_msgget, "msgget"},                                    //
-    {__NR_msgsnd, "msgsnd"},                                    //
-    {__NR_msgrcv, "msgrcv"},                                    //
-    {__NR_msgctl, "msgctl"},                                    //
-    {__NR_fcntl, "fcntl"},                                      //
-    {__NR_flock, "flock"},                                      //
-    {__NR_fsync, "fsync"},                                      //
-    {__NR_fdatasync, "fdatasync"},                              //
-    {__NR_truncate, "truncate"},                                //
-    {__NR_ftruncate, "ftruncate"},                              //
-    {__NR_getcwd, "getcwd"},                                    //
-    {__NR_chdir, "chdir"},                                      //
-    {__NR_fchdir, "fchdir"},                                    //
+    {__NR_execve, "execve"},                    //
+    {__NR_wait4, "wait4"},                      //
+    {__NR_kill, "kill"},                        //
+    {__NR_clone, "clone"},                      //
+    {__NR_tkill, "tkill"},                      //
+    {__NR_futex, "futex"},                      //
+    {__NR_set_robust_list, "set_robust_list"},  //
+    {__NR_get_robust_list, "get_robust_list"},  //
+    {__NR_uname, "uname"},                      //
+    {__NR_semget, "semget"},                    //
+    {__NR_semop, "semop"},                      //
+    {__NR_semctl, "semctl"},                    //
+    {__NR_shmdt, "shmdt"},                      //
+    {__NR_msgget, "msgget"},                    //
+    {__NR_msgsnd, "msgsnd"},                    //
+    {__NR_msgrcv, "msgrcv"},                    //
+    {__NR_msgctl, "msgctl"},                    //
+    {__NR_fcntl, "fcntl"},                      //
+    {__NR_flock, "flock"},                      //
+    {__NR_fsync, "fsync"},                      //
+    {__NR_fdatasync, "fdatasync"},              //
+    {__NR_truncate, "truncate"},                //
+    {__NR_ftruncate, "ftruncate"},              //
+    {__NR_getcwd, "getcwd"},                    //
+    {__NR_chdir, "chdir"},                      //
+    {__NR_fchdir, "fchdir"},                    //
 #ifdef __NR_rename
-    {__NR_rename, "rename"},                                    //
+    {__NR_rename, "rename"},  //
 #endif
 #ifdef __NR_mkdir
-    {__NR_mkdir, "mkdir"},                                      //
+    {__NR_mkdir, "mkdir"},  //
 #endif
 #ifdef __NR_rmdir
-    {__NR_rmdir, "rmdir"},                                      //
+    {__NR_rmdir, "rmdir"},  //
 #endif
 #ifdef __NR_creat
-    {__NR_creat, "creat"},                                      //
+    {__NR_creat, "creat"},  //
 #endif
 #ifdef __NR_link
-    {__NR_link, "link"},                                        //
+    {__NR_link, "link"},  //
 #endif
 #ifdef __NR_unlink
-    {__NR_unlink, "unlink"},                                    //
+    {__NR_unlink, "unlink"},  //
 #endif
 #ifdef __NR_symlink
-    {__NR_symlink, "symlink"},                                  //
+    {__NR_symlink, "symlink"},  //
 #endif
 #ifdef __NR_readlink
-    {__NR_readlink, "readlink"},                                //
+    {__NR_readlink, "readlink"},  //
 #endif
 #ifdef __NR_chmod
-    {__NR_chmod, "chmod"},                                      //
+    {__NR_chmod, "chmod"},  //
 #endif
-    {__NR_fchmod, "fchmod"},                                    //
+    {__NR_fchmod, "fchmod"},  //
 #ifdef __NR_chown
-    {__NR_chown, "chown"},                                      //
+    {__NR_chown, "chown"},  //
 #endif
-    {__NR_fchown, "fchown"},                                    //
+    {__NR_fchown, "fchown"},  //
 #ifdef __NR_lchown
-    {__NR_lchown, "lchown"},                                    //
+    {__NR_lchown, "lchown"},  //
 #endif
-    {__NR_umask, "umask"},                                      //
-    {__NR_gettimeofday, "gettimeofday"},                        //
-    {__NR_getrlimit, "getrlimit"},                              //
-    {__NR_getrusage, "getrusage"},                              //
-    {__NR_sysinfo, "sysinfo"},                                  //
-    {__NR_times, "times"},                                      //
-    {__NR_ptrace, "ptrace"},                                    //
-    {__NR_syslog, "syslog"},                                    //
-    {__NR_getuid, "getuid"},                                    //
-    {__NR_getgid, "getgid"},                                    //
-    {__NR_getppid, "getppid"},                                  //
+    {__NR_umask, "umask"},                //
+    {__NR_gettimeofday, "gettimeofday"},  //
+    {__NR_getrlimit, "getrlimit"},        //
+    {__NR_getrusage, "getrusage"},        //
+    {__NR_sysinfo, "sysinfo"},            //
+    {__NR_times, "times"},                //
+    {__NR_ptrace, "ptrace"},              //
+    {__NR_syslog, "syslog"},              //
+    {__NR_getuid, "getuid"},              //
+    {__NR_getgid, "getgid"},              //
+    {__NR_getppid, "getppid"},            //
 #ifdef __NR_getpgrp
-    {__NR_getpgrp, "getpgrp"},                                  //
+    {__NR_getpgrp, "getpgrp"},  //
 #endif
-    {__NR_setsid, "setsid"},                                    //
-    {__NR_getsid, "getsid"},                                    //
-    {__NR_getpgid, "getpgid"},                                  //
-    {__NR_setpgid, "setpgid"},                                  //
-    {__NR_geteuid, "geteuid"},                                  //
-    {__NR_getegid, "getegid"},                                  //
-    {__NR_getgroups, "getgroups"},                              //
-    {__NR_setgroups, "setgroups"},                              //
-    {__NR_setreuid, "setreuid"},                                //
-    {__NR_setregid, "setregid"},                                //
-    {__NR_setuid, "setuid"},                                    //
-    {__NR_setgid, "setgid"},                                    //
-    {__NR_setresuid, "setresuid"},                              //
-    {__NR_setresgid, "setresgid"},                              //
-    {__NR_getresuid, "getresuid"},                              //
-    {__NR_getresgid, "getresgid"},                              //
-    {__NR_rt_sigpending, "sigpending"},                         //
-    {__NR_rt_sigsuspend, "sigsuspend"},                         //
-    {__NR_sigaltstack, "sigaltstack"},                          //
+    {__NR_setsid, "setsid"},             //
+    {__NR_getsid, "getsid"},             //
+    {__NR_getpgid, "getpgid"},           //
+    {__NR_setpgid, "setpgid"},           //
+    {__NR_geteuid, "geteuid"},           //
+    {__NR_getegid, "getegid"},           //
+    {__NR_getgroups, "getgroups"},       //
+    {__NR_setgroups, "setgroups"},       //
+    {__NR_setreuid, "setreuid"},         //
+    {__NR_setregid, "setregid"},         //
+    {__NR_setuid, "setuid"},             //
+    {__NR_setgid, "setgid"},             //
+    {__NR_setresuid, "setresuid"},       //
+    {__NR_setresgid, "setresgid"},       //
+    {__NR_getresuid, "getresuid"},       //
+    {__NR_getresgid, "getresgid"},       //
+    {__NR_rt_sigpending, "sigpending"},  //
+    {__NR_rt_sigsuspend, "sigsuspend"},  //
+    {__NR_sigaltstack, "sigaltstack"},   //
 #ifdef __NR_mknod
-    {__NR_mknod, "mknod"},                                      //
+    {__NR_mknod, "mknod"},  //
 #endif
-    {__NR_mknodat, "mknodat"},                                  //
-    {__NR_statfs, "statfs"},                                    //
-    {__NR_fstatfs, "fstatfs"},                                  //
-    {__NR_getpriority, "getpriority"},                          //
-    {__NR_setpriority, "setpriority"},                          //
-    {__NR_mlock, "mlock"},                                      //
-    {__NR_munlock, "munlock"},                                  //
-    {__NR_mlockall, "mlockall"},                                //
-    {__NR_munlockall, "munlockall"},                            //
-    {__NR_setrlimit, "setrlimit"},                              //
-    {__NR_chroot, "chroot"},                                    //
-    {__NR_sync, "sync"},                                        //
-    {__NR_acct, "acct"},                                        //
-    {__NR_settimeofday, "settimeofday"},                        //
-    {__NR_mount, "mount"},                                      //
-    {__NR_reboot, "reboot"},                                    //
-    {__NR_quotactl, "quotactl"},                                //
-    {__NR_setfsuid, "setfsuid"},                                //
-    {__NR_setfsgid, "setfsgid"},                                //
-    {__NR_capget, "capget"},                                    //
-    {__NR_capset, "capset"},                                    //
-    {__NR_rt_sigtimedwait, "sigtimedwait"},                     //
-    {__NR_rt_sigqueueinfo, "rt_sigqueueinfo"},                  //
-    {__NR_personality, "personality"},                          //
+    {__NR_mknodat, "mknodat"},                  //
+    {__NR_statfs, "statfs"},                    //
+    {__NR_fstatfs, "fstatfs"},                  //
+    {__NR_getpriority, "getpriority"},          //
+    {__NR_setpriority, "setpriority"},          //
+    {__NR_mlock, "mlock"},                      //
+    {__NR_munlock, "munlock"},                  //
+    {__NR_mlockall, "mlockall"},                //
+    {__NR_munlockall, "munlockall"},            //
+    {__NR_setrlimit, "setrlimit"},              //
+    {__NR_chroot, "chroot"},                    //
+    {__NR_sync, "sync"},                        //
+    {__NR_acct, "acct"},                        //
+    {__NR_settimeofday, "settimeofday"},        //
+    {__NR_mount, "mount"},                      //
+    {__NR_reboot, "reboot"},                    //
+    {__NR_quotactl, "quotactl"},                //
+    {__NR_setfsuid, "setfsuid"},                //
+    {__NR_setfsgid, "setfsgid"},                //
+    {__NR_capget, "capget"},                    //
+    {__NR_capset, "capset"},                    //
+    {__NR_rt_sigtimedwait, "sigtimedwait"},     //
+    {__NR_rt_sigqueueinfo, "rt_sigqueueinfo"},  //
+    {__NR_personality, "personality"},          //
 #ifdef __NR_ustat
-    {__NR_ustat, "ustat"},                                      //
+    {__NR_ustat, "ustat"},  //
 #endif
 #ifdef __NR_sysfs
-    {__NR_sysfs, "sysfs"},                                      //
+    {__NR_sysfs, "sysfs"},  //
 #endif
-    {__NR_sched_setparam, "sched_setparam"},                    //
-    {__NR_sched_getparam, "sched_getparam"},                    //
-    {__NR_sched_setscheduler, "sched_setscheduler"},            //
-    {__NR_sched_getscheduler, "sched_getscheduler"},            //
-    {__NR_sched_get_priority_max, "sched_get_priority_max"},    //
-    {__NR_sched_get_priority_min, "sched_get_priority_min"},    //
-    {__NR_sched_rr_get_interval, "sched_rr_get_interval"},      //
-    {__NR_vhangup, "vhangup"},                                  //
+    {__NR_sched_setparam, "sched_setparam"},                  //
+    {__NR_sched_getparam, "sched_getparam"},                  //
+    {__NR_sched_setscheduler, "sched_setscheduler"},          //
+    {__NR_sched_getscheduler, "sched_getscheduler"},          //
+    {__NR_sched_get_priority_max, "sched_get_priority_max"},  //
+    {__NR_sched_get_priority_min, "sched_get_priority_min"},  //
+    {__NR_sched_rr_get_interval, "sched_rr_get_interval"},    //
+    {__NR_vhangup, "vhangup"},                                //
 #ifdef __NR_modify_ldt
-    {__NR_modify_ldt, "modify_ldt"},                            //
+    {__NR_modify_ldt, "modify_ldt"},  //
 #endif
-    {__NR_pivot_root, "pivot_root"},                            //
+    {__NR_pivot_root, "pivot_root"},  //
 #ifdef __NR__sysctl
-    {__NR__sysctl, "_sysctl"},                                  //
+    {__NR__sysctl, "_sysctl"},  //
 #endif
-    {__NR_prctl, "prctl"},                                      //
+    {__NR_prctl, "prctl"},  //
 #ifdef __NR_arch_prctl
-    {__NR_arch_prctl, "arch_prctl"},                            //
+    {__NR_arch_prctl, "arch_prctl"},  //
 #endif
-    {__NR_adjtimex, "adjtimex"},                                //
-    {__NR_umount2, "umount2"},                                  //
-    {__NR_swapon, "swapon"},                                    //
-    {__NR_swapoff, "swapoff"},                                  //
-    {__NR_sethostname, "sethostname"},                          //
-    {__NR_setdomainname, "setdomainname"},                      //
+    {__NR_adjtimex, "adjtimex"},            //
+    {__NR_umount2, "umount2"},              //
+    {__NR_swapon, "swapon"},                //
+    {__NR_swapoff, "swapoff"},              //
+    {__NR_sethostname, "sethostname"},      //
+    {__NR_setdomainname, "setdomainname"},  //
 #ifdef __NR_iopl
-    {__NR_iopl, "iopl"},                                        //
+    {__NR_iopl, "iopl"},  //
 #endif
 #ifdef __NR_ioperm
-    {__NR_ioperm, "ioperm"},                                    //
+    {__NR_ioperm, "ioperm"},  //
 #endif
-    {__NR_init_module, "init_module"},                          //
-    {__NR_delete_module, "delete_module"},                      //
-    {__NR_gettid, "gettid"},                                    //
-    {__NR_readahead, "readahead"},                              //
-    {__NR_setxattr, "setxattr"},                                //
-    {__NR_fsetxattr, "fsetxattr"},                              //
-    {__NR_getxattr, "getxattr"},                                //
-    {__NR_fgetxattr, "fgetxattr"},                              //
-    {__NR_listxattr, "listxattr"},                              //
-    {__NR_flistxattr, "flistxattr"},                            //
-    {__NR_removexattr, "removexattr"},                          //
-    {__NR_fremovexattr, "fremovexattr"},                        //
-    {__NR_lsetxattr, "lsetxattr"},                              //
-    {__NR_lgetxattr, "lgetxattr"},                              //
-    {__NR_llistxattr, "llistxattr"},                            //
-    {__NR_lremovexattr, "lremovexattr"},                        //
-    {__NR_sched_setaffinity, "sched_setaffinity"},              //
-    {__NR_sched_getaffinity, "sched_getaffinity"},              //
-    {__NR_io_setup, "io_setup"},                                //
-    {__NR_io_destroy, "io_destroy"},                            //
-    {__NR_io_getevents, "io_getevents"},                        //
-    {__NR_io_submit, "io_submit"},                              //
-    {__NR_io_cancel, "io_cancel"},                              //
-    {__NR_lookup_dcookie, "lookup_dcookie"},                    //
+    {__NR_init_module, "init_module"},              //
+    {__NR_delete_module, "delete_module"},          //
+    {__NR_gettid, "gettid"},                        //
+    {__NR_readahead, "readahead"},                  //
+    {__NR_setxattr, "setxattr"},                    //
+    {__NR_fsetxattr, "fsetxattr"},                  //
+    {__NR_getxattr, "getxattr"},                    //
+    {__NR_fgetxattr, "fgetxattr"},                  //
+    {__NR_listxattr, "listxattr"},                  //
+    {__NR_flistxattr, "flistxattr"},                //
+    {__NR_removexattr, "removexattr"},              //
+    {__NR_fremovexattr, "fremovexattr"},            //
+    {__NR_lsetxattr, "lsetxattr"},                  //
+    {__NR_lgetxattr, "lgetxattr"},                  //
+    {__NR_llistxattr, "llistxattr"},                //
+    {__NR_lremovexattr, "lremovexattr"},            //
+    {__NR_sched_setaffinity, "sched_setaffinity"},  //
+    {__NR_sched_getaffinity, "sched_getaffinity"},  //
+    {__NR_io_setup, "io_setup"},                    //
+    {__NR_io_destroy, "io_destroy"},                //
+    {__NR_io_getevents, "io_getevents"},            //
+    {__NR_io_submit, "io_submit"},                  //
+    {__NR_io_cancel, "io_cancel"},                  //
+    {__NR_lookup_dcookie, "lookup_dcookie"},        //
 #ifdef __NR_epoll_create
-    {__NR_epoll_create, "epoll_create"},                        //
+    {__NR_epoll_create, "epoll_create"},  //
 #endif
 #ifdef __NR_epoll_wait
-    {__NR_epoll_wait, "epoll_wait"},                            //
+    {__NR_epoll_wait, "epoll_wait"},  //
 #endif
-    {__NR_epoll_ctl, "epoll_ctl"},                              //
+    {__NR_epoll_ctl, "epoll_ctl"},  //
 #ifdef __NR_getdents
-    {__NR_getdents, "getdents"},                                //
+    {__NR_getdents, "getdents"},  //
 #endif
-    {__NR_getdents64, "getdents64"},                            //
-    {__NR_set_tid_address, "set_tid_address"},                  //
-    {__NR_restart_syscall, "restart_syscall"},                  //
-    {__NR_semtimedop, "semtimedop"},                            //
-    {__NR_fadvise64, "fadvise"},                                //
-    {__NR_timer_create, "timer_create"},                        //
-    {__NR_timer_settime, "timer_settime"},                      //
-    {__NR_timer_gettime, "timer_gettime"},                      //
-    {__NR_timer_getoverrun, "timer_getoverrun"},                //
-    {__NR_timer_delete, "timer_delete"},                        //
-    {__NR_clock_settime, "clock_settime"},                      //
-    {__NR_clock_gettime, "clock_gettime"},                      //
-    {__NR_clock_getres, "clock_getres"},                        //
-    {__NR_clock_nanosleep, "clock_nanosleep"},                  //
-    {__NR_tgkill, "tgkill"},                                    //
-    {__NR_mbind, "mbind"},                                      //
-    {__NR_set_mempolicy, "set_mempolicy"},                      //
-    {__NR_get_mempolicy, "get_mempolicy"},                      //
-    {__NR_mq_open, "mq_open"},                                  //
-    {__NR_mq_unlink, "mq_unlink"},                              //
-    {__NR_mq_timedsend, "mq_timedsend"},                        //
-    {__NR_mq_timedreceive, "mq_timedreceive"},                  //
-    {__NR_mq_notify, "mq_notify"},                              //
-    {__NR_mq_getsetattr, "mq_getsetattr"},                      //
-    {__NR_kexec_load, "kexec_load"},                            //
-    {__NR_waitid, "waitid"},                                    //
-    {__NR_add_key, "add_key"},                                  //
-    {__NR_request_key, "request_key"},                          //
-    {__NR_keyctl, "keyctl"},                                    //
-    {__NR_ioprio_set, "ioprio_set"},                            //
-    {__NR_ioprio_get, "ioprio_get"},                            //
+    {__NR_getdents64, "getdents64"},              //
+    {__NR_set_tid_address, "set_tid_address"},    //
+    {__NR_restart_syscall, "restart_syscall"},    //
+    {__NR_semtimedop, "semtimedop"},              //
+    {__NR_fadvise64, "fadvise"},                  //
+    {__NR_timer_create, "timer_create"},          //
+    {__NR_timer_settime, "timer_settime"},        //
+    {__NR_timer_gettime, "timer_gettime"},        //
+    {__NR_timer_getoverrun, "timer_getoverrun"},  //
+    {__NR_timer_delete, "timer_delete"},          //
+    {__NR_clock_settime, "clock_settime"},        //
+    {__NR_clock_gettime, "clock_gettime"},        //
+    {__NR_clock_getres, "clock_getres"},          //
+    {__NR_clock_nanosleep, "clock_nanosleep"},    //
+    {__NR_tgkill, "tgkill"},                      //
+    {__NR_mbind, "mbind"},                        //
+    {__NR_set_mempolicy, "set_mempolicy"},        //
+    {__NR_get_mempolicy, "get_mempolicy"},        //
+    {__NR_mq_open, "mq_open"},                    //
+    {__NR_mq_unlink, "mq_unlink"},                //
+    {__NR_mq_timedsend, "mq_timedsend"},          //
+    {__NR_mq_timedreceive, "mq_timedreceive"},    //
+    {__NR_mq_notify, "mq_notify"},                //
+    {__NR_mq_getsetattr, "mq_getsetattr"},        //
+    {__NR_kexec_load, "kexec_load"},              //
+    {__NR_waitid, "waitid"},                      //
+    {__NR_add_key, "add_key"},                    //
+    {__NR_request_key, "request_key"},            //
+    {__NR_keyctl, "keyctl"},                      //
+    {__NR_ioprio_set, "ioprio_set"},              //
+    {__NR_ioprio_get, "ioprio_get"},              //
 #ifdef __NR_inotify_init
-    {__NR_inotify_init, "inotify_init"},                        //
+    {__NR_inotify_init, "inotify_init"},  //
 #endif
-    {__NR_inotify_add_watch, "inotify_add_watch"},              //
-    {__NR_inotify_rm_watch, "inotify_rm_watch"},                //
-    {__NR_openat, "openat"},                                    //
-    {__NR_mkdirat, "mkdirat"},                                  //
-    {__NR_fchownat, "fchownat"},                                //
+    {__NR_inotify_add_watch, "inotify_add_watch"},  //
+    {__NR_inotify_rm_watch, "inotify_rm_watch"},    //
+    {__NR_openat, "openat"},                        //
+    {__NR_mkdirat, "mkdirat"},                      //
+    {__NR_fchownat, "fchownat"},                    //
 #ifdef __NR_utime
-    {__NR_utime, "utime"},                                      //
+    {__NR_utime, "utime"},  //
 #endif
 #ifdef __NR_utimes
-    {__NR_utimes, "utimes"},                                    //
+    {__NR_utimes, "utimes"},  //
 #endif
 #ifdef __NR_futimesat
-    {__NR_futimesat, "futimesat"},                              //
+    {__NR_futimesat, "futimesat"},  //
 #endif
-    {__NR_newfstatat, "fstatat"},                               //
-    {__NR_unlinkat, "unlinkat"},                                //
-    {__NR_renameat, "renameat"},                                //
-    {__NR_linkat, "linkat"},                                    //
-    {__NR_symlinkat, "symlinkat"},                              //
-    {__NR_readlinkat, "readlinkat"},                            //
-    {__NR_fchmodat, "fchmodat"},                                //
-    {__NR_faccessat, "faccessat"},                              //
-    {__NR_unshare, "unshare"},                                  //
-    {__NR_splice, "splice"},                                    //
-    {__NR_tee, "tee"},                                          //
-    {__NR_sync_file_range, "sync_file_range"},                  //
-    {__NR_vmsplice, "vmsplice"},                                //
-    {__NR_migrate_pages, "migrate_pages"},                      //
-    {__NR_move_pages, "move_pages"},                            //
-    {__NR_preadv, "preadv"},                                    //
-    {__NR_pwritev, "pwritev"},                                  //
-    {__NR_utimensat, "utimensat"},                              //
-    {__NR_fallocate, "fallocate"},                              //
-    {__NR_accept4, "accept4"},                                  //
-    {__NR_dup3, "dup3"},                                        //
-    {__NR_pipe2, "pipe2"},                                      //
-    {__NR_epoll_pwait, "epoll_pwait"},                          //
-    {__NR_epoll_create1, "epoll_create1"},                      //
-    {__NR_perf_event_open, "perf_event_open"},                  //
-    {__NR_inotify_init1, "inotify_init1"},                      //
-    {__NR_rt_tgsigqueueinfo, "rt_tgsigqueueinfo"},              //
+    {__NR_newfstatat, "fstatat"},                   //
+    {__NR_unlinkat, "unlinkat"},                    //
+    {__NR_renameat, "renameat"},                    //
+    {__NR_linkat, "linkat"},                        //
+    {__NR_symlinkat, "symlinkat"},                  //
+    {__NR_readlinkat, "readlinkat"},                //
+    {__NR_fchmodat, "fchmodat"},                    //
+    {__NR_faccessat, "faccessat"},                  //
+    {__NR_unshare, "unshare"},                      //
+    {__NR_splice, "splice"},                        //
+    {__NR_tee, "tee"},                              //
+    {__NR_sync_file_range, "sync_file_range"},      //
+    {__NR_vmsplice, "vmsplice"},                    //
+    {__NR_migrate_pages, "migrate_pages"},          //
+    {__NR_move_pages, "move_pages"},                //
+    {__NR_preadv, "preadv"},                        //
+    {__NR_pwritev, "pwritev"},                      //
+    {__NR_utimensat, "utimensat"},                  //
+    {__NR_fallocate, "fallocate"},                  //
+    {__NR_accept4, "accept4"},                      //
+    {__NR_dup3, "dup3"},                            //
+    {__NR_pipe2, "pipe2"},                          //
+    {__NR_epoll_pwait, "epoll_pwait"},              //
+    {__NR_epoll_create1, "epoll_create1"},          //
+    {__NR_perf_event_open, "perf_event_open"},      //
+    {__NR_inotify_init1, "inotify_init1"},          //
+    {__NR_rt_tgsigqueueinfo, "rt_tgsigqueueinfo"},  //
 #ifdef __NR_signalfd
-    {__NR_signalfd, "signalfd"},                                //
+    {__NR_signalfd, "signalfd"},  //
 #endif
-    {__NR_signalfd4, "signalfd4"},                              //
+    {__NR_signalfd4, "signalfd4"},  //
 #ifdef __NR_eventfd
-    {__NR_eventfd, "eventfd"},                                  //
+    {__NR_eventfd, "eventfd"},  //
 #endif
-    {__NR_eventfd2, "eventfd2"},                                //
-    {__NR_timerfd_create, "timerfd_create"},                    //
-    {__NR_timerfd_settime, "timerfd_settime"},                  //
-    {__NR_timerfd_gettime, "timerfd_gettime"},                  //
-    {__NR_recvmmsg, "recvmmsg"},                                //
-    {__NR_fanotify_init, "fanotify_init"},                      //
-    {__NR_fanotify_mark, "fanotify_mark"},                      //
-    {__NR_prlimit64, "prlimit"},                                //
-    {__NR_name_to_handle_at, "name_to_handle_at"},              //
-    {__NR_open_by_handle_at, "open_by_handle_at"},              //
-    {__NR_clock_adjtime, "clock_adjtime"},                      //
-    {__NR_syncfs, "syncfs"},                                    //
-    {__NR_sendmmsg, "sendmmsg"},                                //
-    {__NR_setns, "setns"},                                      //
-    {__NR_getcpu, "getcpu"},                                    //
-    {__NR_process_vm_readv, "process_vm_readv"},                //
-    {__NR_process_vm_writev, "process_vm_writev"},              //
-    {__NR_kcmp, "kcmp"},                                        //
-    {__NR_finit_module, "finit_module"},                        //
-    {__NR_sched_setattr, "sched_setattr"},                      //
-    {__NR_sched_getattr, "sched_getattr"},                      //
-    {__NR_renameat2, "renameat2"},                              //
-    {__NR_seccomp, "seccomp"},                                  //
-    {__NR_getrandom, "getrandom"},                              //
-    {__NR_memfd_create, "memfd_create"},                        //
-    {__NR_kexec_file_load, "kexec_file_load"},                  //
-    {__NR_bpf, "bpf"},                                          //
-    {__NR_execveat, "execveat"},                                //
-    {__NR_userfaultfd, "userfaultfd"},                          //
-    {__NR_membarrier, "membarrier"},                            //
-    {__NR_mlock2, "mlock2"},                                    //
-    {__NR_copy_file_range, "copy_file_range"},                  //
-    {__NR_preadv2, "preadv2"},                                  //
-    {__NR_pwritev2, "pwritev2"},                                //
-    {__NR_pkey_mprotect, "pkey_mprotect"},                      //
-    {__NR_pkey_alloc, "pkey_alloc"},                            //
-    {__NR_pkey_free, "pkey_free"},                              //
-    {__NR_statx, "statx"},                                      //
-    {__NR_io_pgetevents, "io_pgetevents"},                      //
-    {__NR_rseq, "rseq"},                                        //
-    {__NR_pidfd_send_signal, "pidfd_send_signal"},              //
-    {__NR_io_uring_setup, "io_uring_setup"},                    //
-    {__NR_io_uring_enter, "io_uring_enter"},                    //
-    {__NR_io_uring_register, "io_uring_register"},              //
-    {__NR_open_tree, "open_tree"},                              //
-    {__NR_move_mount, "move_mount"},                            //
-    {__NR_fsopen, "fsopen"},                                    //
-    {__NR_fsconfig, "fsconfig"},                                //
-    {__NR_fsmount, "fsmount"},                                  //
-    {__NR_fspick, "fspick"},                                    //
-    {__NR_pidfd_open, "pidfd_open"},                            //
-    {__NR_clone3, "clone3"},                                    //
-    {__NR_close_range, "close_range"},                          //
-    {__NR_openat2, "openat2"},                                  //
-    {__NR_pidfd_getfd, "pidfd_getfd"},                          //
-    {__NR_faccessat2, "faccessat2"},                            //
-    {__NR_process_madvise, "process_madvise"},                  //
-    {__NR_epoll_pwait2, "epoll_pwait2"},                        //
-    {__NR_mount_setattr, "mount_setattr"},                      //
-    {__NR_quotactl_fd, "quotactl_fd"},                          //
+    {__NR_eventfd2, "eventfd2"},                    //
+    {__NR_timerfd_create, "timerfd_create"},        //
+    {__NR_timerfd_settime, "timerfd_settime"},      //
+    {__NR_timerfd_gettime, "timerfd_gettime"},      //
+    {__NR_recvmmsg, "recvmmsg"},                    //
+    {__NR_fanotify_init, "fanotify_init"},          //
+    {__NR_fanotify_mark, "fanotify_mark"},          //
+    {__NR_prlimit64, "prlimit"},                    //
+    {__NR_name_to_handle_at, "name_to_handle_at"},  //
+    {__NR_open_by_handle_at, "open_by_handle_at"},  //
+    {__NR_clock_adjtime, "clock_adjtime"},          //
+    {__NR_syncfs, "syncfs"},                        //
+    {__NR_sendmmsg, "sendmmsg"},                    //
+    {__NR_setns, "setns"},                          //
+    {__NR_getcpu, "getcpu"},                        //
+    {__NR_process_vm_readv, "process_vm_readv"},    //
+    {__NR_process_vm_writev, "process_vm_writev"},  //
+    {__NR_kcmp, "kcmp"},                            //
+    {__NR_finit_module, "finit_module"},            //
+    {__NR_sched_setattr, "sched_setattr"},          //
+    {__NR_sched_getattr, "sched_getattr"},          //
+    {__NR_renameat2, "renameat2"},                  //
+    {__NR_seccomp, "seccomp"},                      //
+    {__NR_getrandom, "getrandom"},                  //
+    {__NR_memfd_create, "memfd_create"},            //
+    {__NR_kexec_file_load, "kexec_file_load"},      //
+    {__NR_bpf, "bpf"},                              //
+    {__NR_execveat, "execveat"},                    //
+    {__NR_userfaultfd, "userfaultfd"},              //
+    {__NR_membarrier, "membarrier"},                //
+    {__NR_mlock2, "mlock2"},                        //
+    {__NR_copy_file_range, "copy_file_range"},      //
+    {__NR_preadv2, "preadv2"},                      //
+    {__NR_pwritev2, "pwritev2"},                    //
+    {__NR_pkey_mprotect, "pkey_mprotect"},          //
+    {__NR_pkey_alloc, "pkey_alloc"},                //
+    {__NR_pkey_free, "pkey_free"},                  //
+    {__NR_statx, "statx"},                          //
+    {__NR_io_pgetevents, "io_pgetevents"},          //
+    {__NR_rseq, "rseq"},                            //
+    {__NR_pidfd_send_signal, "pidfd_send_signal"},  //
+    {__NR_io_uring_setup, "io_uring_setup"},        //
+    {__NR_io_uring_enter, "io_uring_enter"},        //
+    {__NR_io_uring_register, "io_uring_register"},  //
+    {__NR_open_tree, "open_tree"},                  //
+    {__NR_move_mount, "move_mount"},                //
+    {__NR_fsopen, "fsopen"},                        //
+    {__NR_fsconfig, "fsconfig"},                    //
+    {__NR_fsmount, "fsmount"},                      //
+    {__NR_fspick, "fspick"},                        //
+    {__NR_pidfd_open, "pidfd_open"},                //
+    {__NR_clone3, "clone3"},                        //
+    {__NR_close_range, "close_range"},              //
+    {__NR_openat2, "openat2"},                      //
+    {__NR_pidfd_getfd, "pidfd_getfd"},              //
+    {__NR_faccessat2, "faccessat2"},                //
+    {__NR_process_madvise, "process_madvise"},      //
+    {__NR_epoll_pwait2, "epoll_pwait2"},            //
+    {__NR_mount_setattr, "mount_setattr"},          //
+#ifdef __NR_quotactl_fd
+    {__NR_quotactl_fd, "quotactl_fd"},  //
+#endif
     {__NR_landlock_create_ruleset, "landlock_create_ruleset"},  //
     {__NR_landlock_add_rule, "landlock_add_rule"},              //
     {__NR_landlock_restrict_self, "landlock_restrict_self"},    //
-    {__NR_memfd_secret, "memfd_secret"},                        //
-    {__NR_process_mrelease, "process_mrelease"},                //
-    {__NR_futex_waitv, "futex_waitv"},                          //
+#ifdef __NR_memfd_secret
+    {__NR_memfd_secret, "memfd_secret"},  //
+#endif
+#ifdef __NR_process_mrelease
+    {__NR_process_mrelease, "process_mrelease"},  //
+#endif
+#ifdef __NR_futex_waitv
+    {__NR_futex_waitv, "futex_waitv"},  //
+#endif
+#ifdef __NR_set_mempolicy_home_node
     {__NR_set_mempolicy_home_node, "set_mempolicy_home_node"},  //
+#endif
 };
 
 static const uint16_t kPledgeDefault[] = {
@@ -575,21 +586,21 @@ static const uint16_t kPledgeStdio[] = {
     __NR_preadv2,            //
     __NR_dup,                //
 #ifdef __NR_dup2
-    __NR_dup2,               //
+    __NR_dup2,  //
 #endif
-    __NR_dup3,               //
-    __NR_fchdir,             //
-    __NR_fcntl | STDIO,      //
-    __NR_fstat,              //
-    __NR_fsync,              //
-    __NR_sysinfo,            //
-    __NR_fdatasync,          //
-    __NR_ftruncate,          //
-    __NR_getrandom,          //
-    __NR_getgroups,          //
-    __NR_getpgid,            //
+    __NR_dup3,           //
+    __NR_fchdir,         //
+    __NR_fcntl | STDIO,  //
+    __NR_fstat,          //
+    __NR_fsync,          //
+    __NR_sysinfo,        //
+    __NR_fdatasync,      //
+    __NR_ftruncate,      //
+    __NR_getrandom,      //
+    __NR_getgroups,      //
+    __NR_getpgid,        //
 #ifdef __NR_getpgrp
-    __NR_getpgrp,            //
+    __NR_getpgrp,  //
 #endif
     __NR_getpid,             //
     __NR_gettid,             //
@@ -624,32 +635,32 @@ static const uint16_t kPledgeStdio[] = {
     __NR_fadvise64,          //
     __NR_mprotect | NOEXEC,  //
 #ifdef __NR_arch_prctl
-    __NR_arch_prctl,         //
+    __NR_arch_prctl,  //
 #endif
-    __NR_migrate_pages,      //
-    __NR_sync_file_range,    //
-    __NR_set_tid_address,    //
-    __NR_membarrier,         //
-    __NR_nanosleep,          //
+    __NR_migrate_pages,    //
+    __NR_sync_file_range,  //
+    __NR_set_tid_address,  //
+    __NR_membarrier,       //
+    __NR_nanosleep,        //
 #ifdef __NR_pipe
-    __NR_pipe,               //
+    __NR_pipe,  //
 #endif
-    __NR_pipe2,              //
+    __NR_pipe2,  //
 #ifdef __NR_poll
-    __NR_poll,               //
+    __NR_poll,  //
 #endif
-    __NR_ppoll,              //
+    __NR_ppoll,  //
 #ifdef __NR_select
-    __NR_select,             //
+    __NR_select,  //
 #endif
-    __NR_pselect6,           //
+    __NR_pselect6,  //
 #ifdef __NR_epoll_create
-    __NR_epoll_create,       //
+    __NR_epoll_create,  //
 #endif
-    __NR_epoll_create1,      //
-    __NR_epoll_ctl,          //
+    __NR_epoll_create1,  //
+    __NR_epoll_ctl,      //
 #ifdef __NR_epoll_wait
-    __NR_epoll_wait,         //
+    __NR_epoll_wait,  //
 #endif
     __NR_epoll_pwait,        //
     __NR_epoll_pwait2,       //
@@ -657,18 +668,18 @@ static const uint16_t kPledgeStdio[] = {
     __NR_sendto | ADDRLESS,  //
     __NR_ioctl | RESTRICT,   //
 #ifdef __NR_alarm
-    __NR_alarm,              //
+    __NR_alarm,  //
 #endif
 #ifdef __NR_pause
-    __NR_pause,              //
+    __NR_pause,  //
 #endif
-    __NR_shutdown,           //
+    __NR_shutdown,  //
 #ifdef __NR_eventfd
-    __NR_eventfd,            //
+    __NR_eventfd,  //
 #endif
-    __NR_eventfd2,           //
+    __NR_eventfd2,  //
 #ifdef __NR_signalfd
-    __NR_signalfd,           //
+    __NR_signalfd,  //
 #endif
     __NR_signalfd4,          //
     __NR_rt_sigaction,       //
@@ -702,122 +713,122 @@ static const uint16_t kPledgeFlock[] = {
 };
 
 static const uint16_t kPledgeRpath[] = {
-    __NR_chdir,              //
-    __NR_getcwd,             //
+    __NR_chdir,   //
+    __NR_getcwd,  //
 #ifdef __NR_open
-    __NR_open | READONLY,    //
+    __NR_open | READONLY,  //
 #endif
     __NR_openat | READONLY,  //
 #ifdef __NR_stat
-    __NR_stat,               //
+    __NR_stat,  //
 #endif
 #ifdef __NR_lstat
-    __NR_lstat,              //
+    __NR_lstat,  //
 #endif
-    __NR_fstat,              //
-    __NR_newfstatat,         //
+    __NR_fstat,       //
+    __NR_newfstatat,  //
 #ifdef __NR_access
-    __NR_access,             //
+    __NR_access,  //
 #endif
-    __NR_faccessat,          //
-    __NR_faccessat2,         //
+    __NR_faccessat,   //
+    __NR_faccessat2,  //
 #ifdef __NR_readlink
-    __NR_readlink,           //
+    __NR_readlink,  //
 #endif
-    __NR_readlinkat,         //
-    __NR_statfs,             //
-    __NR_fstatfs,            //
+    __NR_readlinkat,  //
+    __NR_statfs,      //
+    __NR_fstatfs,     //
 #ifdef __NR_getdents
-    __NR_getdents,           //
+    __NR_getdents,  //
 #endif
-    __NR_getdents64,         //
+    __NR_getdents64,  //
 };
 
 static const uint16_t kPledgeWpath[] = {
-    __NR_getcwd,              //
+    __NR_getcwd,  //
 #ifdef __NR_open
-    __NR_open | WRITEONLY,    //
+    __NR_open | WRITEONLY,  //
 #endif
     __NR_openat | WRITEONLY,  //
 #ifdef __NR_stat
-    __NR_stat,                //
+    __NR_stat,  //
 #endif
-    __NR_fstat,               //
+    __NR_fstat,  //
 #ifdef __NR_lstat
-    __NR_lstat,               //
+    __NR_lstat,  //
 #endif
-    __NR_newfstatat,          //
+    __NR_newfstatat,  //
 #ifdef __NR_access
-    __NR_access,              //
+    __NR_access,  //
 #endif
-    __NR_truncate,            //
-    __NR_faccessat,           //
-    __NR_faccessat2,          //
-    __NR_readlinkat,          //
+    __NR_truncate,    //
+    __NR_faccessat,   //
+    __NR_faccessat2,  //
+    __NR_readlinkat,  //
 #ifdef __NR_chmod
-    __NR_chmod | NOBITS,      //
+    __NR_chmod | NOBITS,  //
 #endif
-    __NR_fchmod | NOBITS,     //
-    __NR_fchmodat | NOBITS,   //
+    __NR_fchmod | NOBITS,    //
+    __NR_fchmodat | NOBITS,  //
 };
 
 static const uint16_t kPledgeCpath[] = {
 #ifdef __NR_open
-    __NR_open | CREATONLY,    //
+    __NR_open | CREATONLY,  //
 #endif
     __NR_openat | CREATONLY,  //
 #ifdef __NR_creat
-    __NR_creat | RESTRICT,    //
+    __NR_creat | RESTRICT,  //
 #endif
 #ifdef __NR_rename
-    __NR_rename,              //
+    __NR_rename,  //
 #endif
-    __NR_renameat,            //
-    __NR_renameat2,           //
+    __NR_renameat,   //
+    __NR_renameat2,  //
 #ifdef __NR_link
-    __NR_link,                //
+    __NR_link,  //
 #endif
-    __NR_linkat,              //
+    __NR_linkat,  //
 #ifdef __NR_symlink
-    __NR_symlink,             //
+    __NR_symlink,  //
 #endif
-    __NR_symlinkat,           //
+    __NR_symlinkat,  //
 #ifdef __NR_rmdir
-    __NR_rmdir,               //
+    __NR_rmdir,  //
 #endif
 #ifdef __NR_unlink
-    __NR_unlink,              //
+    __NR_unlink,  //
 #endif
-    __NR_unlinkat,            //
+    __NR_unlinkat,  //
 #ifdef __NR_mkdir
-    __NR_mkdir,               //
+    __NR_mkdir,  //
 #endif
-    __NR_mkdirat,             //
+    __NR_mkdirat,  //
 };
 
 static const uint16_t kPledgeDpath[] = {
 #ifdef __NR_mknod
-    __NR_mknod,    //
+    __NR_mknod,  //
 #endif
     __NR_mknodat,  //
 };
 
 static const uint16_t kPledgeFattr[] = {
 #ifdef __NR_chmod
-    __NR_chmod | NOBITS,     //
+    __NR_chmod | NOBITS,  //
 #endif
     __NR_fchmod | NOBITS,    //
     __NR_fchmodat | NOBITS,  //
 #ifdef __NR_utime
-    __NR_utime,              //
+    __NR_utime,  //
 #endif
 #ifdef __NR_utimes
-    __NR_utimes,             //
+    __NR_utimes,  //
 #endif
 #ifdef __NR_futimesat
-    __NR_futimesat,          //
+    __NR_futimesat,  //
 #endif
-    __NR_utimensat,          //
+    __NR_utimensat,  //
 };
 
 static const uint16_t kPledgeInet[] = {
@@ -878,10 +889,10 @@ static const uint16_t kPledgeSendfd[] = {
 
 static const uint16_t kPledgeProc[] = {
 #ifdef __NR_fork
-    __NR_fork,                    //
+    __NR_fork,  //
 #endif
 #ifdef __NR_vfork
-    __NR_vfork,                   //
+    __NR_vfork,  //
 #endif
     __NR_clone | RESTRICT,        //
     __NR_kill,                    //
@@ -920,11 +931,11 @@ static const uint16_t kPledgeId[] = {
 
 static const uint16_t kPledgeChown[] = {
 #ifdef __NR_chown
-    __NR_chown,     //
+    __NR_chown,  //
 #endif
-    __NR_fchown,    //
+    __NR_fchown,  //
 #ifdef __NR_lchown
-    __NR_lchown,    //
+    __NR_lchown,  //
 #endif
     __NR_fchownat,  //
 };
@@ -964,10 +975,10 @@ static const uint16_t kPledgeVminfo[] = {
 // little security here. consider using them together.
 static const uint16_t kPledgeTmppath[] = {
 #ifdef __NR_lstat
-    __NR_lstat,     //
+    __NR_lstat,  //
 #endif
 #ifdef __NR_unlink
-    __NR_unlink,    //
+    __NR_unlink,  //
 #endif
     __NR_unlinkat,  //
 };
@@ -1006,8 +1017,10 @@ static const struct sock_filter kPledgeStart[] = {
 #endif
     // each filter assumes ordinal is already loaded into accumulator
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
-    // forbid some system calls with ENOSYS (rather than EPERM)
+// forbid some system calls with ENOSYS (rather than EPERM)
+#ifdef __NR_memfd_secret
     BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, __NR_memfd_secret, 5, 0),
+#endif
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_rseq, 4, 0),
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_memfd_create, 3, 0),
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_openat2, 2, 0),
@@ -1218,8 +1231,8 @@ static privileged void MonitorSigSys(void) {
 }
 #endif
 
-static privileged void AppendFilter(struct Filter *f, const struct sock_filter *p,
-                                    size_t n) {
+static privileged void AppendFilter(struct Filter *f,
+                                    const struct sock_filter *p, size_t n) {
   if (UNLIKELY(f->n + n > ARRAYLEN(f->p))) notpossible;
   MemCpy(f->p + f->n, p, n * sizeof(*f->p));
   f->n += n;
@@ -1550,7 +1563,7 @@ static privileged void AllowGetsockoptRestrict(struct Filter *f) {
 //   - MAP_HUGETLB  (0x40000)
 //
 static privileged void AllowMmapExec(struct Filter *f) {
-  //long y = (long)__privileged_end;
+  // long y = (long)__privileged_end;
   static const struct sock_filter fragment[] = {
       /*L0*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_mmap, 0, 6 - 1),
       /*L1*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[3])),  // flags
@@ -2288,7 +2301,8 @@ privileged int sys_pledge_linux(unsigned long ipromises, int mode) {
   // doesn't have SECCOMP support. since we don't consider lack of
   // system support for security to be an error, we distinguish these
   // two cases by running a simpler SECCOMP operation.
-  if (rc < 0 && errno == EINVAL && prctl(PR_GET_SECCOMP, 0, 0, 0, 0) < 0 && errno == EINVAL) {
+  if (rc < 0 && errno == EINVAL && prctl(PR_GET_SECCOMP, 0, 0, 0, 0) < 0 &&
+      errno == EINVAL) {
     rc = 0;  // -Enosys
   }
 

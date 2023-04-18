@@ -16,10 +16,8 @@ SHELL := bash
 # broken files
 .DELETE_ON_ERROR:
 
-# --warn-undefined-variables: Referencing undefined variables is probably
-# wrong...
 # --no-builtin-rules: I'd rather make my own rules myself, make, thanks :)
-MAKEFLAGS += --warn-undefined-variables --no-builtin-rules
+MAKEFLAGS += --no-builtin-rules
 
 # We use `override` to enable setting part of CFLAGS on the command line
 
