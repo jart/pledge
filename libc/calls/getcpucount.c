@@ -16,8 +16,8 @@
 │ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR             │
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
-/*
 #include "libc/calls/calls.h"
+/*
 #include "libc/calls/sched-sysv.internal.h"
 #include "libc/calls/struct/cpuset.h"
 #include "libc/calls/weirdtypes.h"
@@ -27,18 +27,10 @@
 #include "libc/nt/dll.h"
 #include "libc/nt/struct/systeminfo.h"
 #include "libc/nt/systeminfo.h"
-*/
 #include "libc/runtime/runtime.h"
+*/
 
 #include <sched.h>
-
-/*
-#define CTL_HW                6
-#define HW_NCPU               3
-#define HW_NCPUONLINE_OPENBSD 25
-#define HW_NCPUONLINE_NETBSD  16
-#define ALL_PROCESSOR_GROUPS  0xffff
-*/
 
 static unsigned _getcpucount_linux(void) {
   cpu_set_t s = {0};
@@ -49,35 +41,8 @@ static unsigned _getcpucount_linux(void) {
   }
 }
 
-/*static unsigned _getcpucount_bsd(void) {
-  size_t n;
-  int c, cmd[2];
-  n = sizeof(c);
-  cmd[0] = CTL_HW;
-  if (IsOpenbsd()) {
-    cmd[1] = HW_NCPUONLINE_OPENBSD;
-  } else if (IsNetbsd()) {
-    cmd[1] = HW_NCPUONLINE_NETBSD;
-  } else {
-    cmd[1] = HW_NCPU;
-  }
-  if (!sys_sysctl(cmd, 2, &c, &n, 0, 0)) {
-    return c;
-  } else {
-    return 0;
-  }
-}*/
-
 static unsigned _getcpucount_impl(void) {
-  //if (!IsWindows()) {
-  //  if (!IsBsd()) {
-      return _getcpucount_linux();
-  //  } else {
-  //    return _getcpucount_bsd();
-  //  }
-  //} else {
-  //  return GetMaximumProcessorCount(ALL_PROCESSOR_GROUPS);
-  //}
+  return _getcpucount_linux();
 }
 
 static int g_cpucount;
@@ -104,4 +69,3 @@ __attribute__((__constructor__)) static void _getcpucount_init(void) {
 unsigned getcpucount(void) {
   return g_cpucount;
 }
-

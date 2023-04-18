@@ -29,19 +29,19 @@
 /*
 #include "libc/intrin/strace.internal.h"
 #include "libc/log/libfatal.internal.h"
+*/
 #include "libc/runtime/runtime.h"
 #include "libc/str/str.h"
+/*
 #include "libc/sysv/consts/ok.h"
 #include "libc/sysv/consts/s.h"
 #include "libc/sysv/errfuns.h"
 */
 
-#include <stdlib.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <string.h>
 #include <errno.h>
-#include <stdbool.h>
 
 static bool IsExePath(const char *s, size_t n) {
   return n >= 4 && (READ32LE(s + n - 4) == READ32LE(".exe") ||
@@ -120,18 +120,7 @@ static bool FindCommand(const char *name, char *pb, size_t pbsz, size_t namelen,
     pb[0] = 0;
     return AccessCommand(name, pb, pbsz, namelen, err, suffix, 0);
   }
-  /*
-  if (IsWindows() && pri &&
-      pbsz > max(strlen(kNtSystemDirectory), strlen(kNtWindowsDirectory))) {
-    return AccessCommand(name, pb, pbsz, namelen, err, suffix,
-                         stpcpy(pb, kNtSystemDirectory) - pb) ||
-           AccessCommand(name, pb, pbsz, namelen, err, suffix,
-                         stpcpy(pb, kNtWindowsDirectory) - pb);
-  }*/
-  return (IsWindows() &&
-          (pbsz > 1 && AccessCommand(name, pb, pbsz, namelen, err, suffix,
-                                     stpcpy(pb, ".") - pb))) ||
-         SearchPath(name, pb, pbsz, namelen, err, suffix);
+  return SearchPath(name, pb, pbsz, namelen, err, suffix);
 }
 
 static bool FindVerbatim(const char *name, char *pb, size_t pbsz,
@@ -186,6 +175,5 @@ char *commandv(const char *name, char *pathbuf, size_t pathbufsz) {
       errno = f;
     }
   }
-  //STRACE("commandv(%#s, %p, %'zu) → %#s% m", name, pathbuf, pathbufsz, res);
   return res;
 }

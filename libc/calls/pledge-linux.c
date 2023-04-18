@@ -63,17 +63,6 @@
  * it can be transplanted into codebases and injected into programs.
  */
 
-/*
-#define Eperm       1
-#define Sigabrt     6
-#define Einval      22
-#define Sigsys      31
-#define Enosys      38
-#define Sig_Setmask 2
-#define Sa_Siginfo  4
-#define Sa_Restorer 0x04000000
-#define Sa_Restart  0x10000000
-*/
 #define Eperm EPERM
 #define Sigabrt SIGABRT
 #define Einval EINVAL

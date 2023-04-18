@@ -30,9 +30,5 @@
 #include <stdbool.h>
 
 privileged bool is_linux_2_6_23(void) {
-  int rc;
-  if (!IsLinux()) return false;
-  //if (IsGenuineBlink()) return true;
-  errno = 0;
   return prctl(PR_GET_SECCOMP) >= 0 || errno != EINVAL;
 }

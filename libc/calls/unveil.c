@@ -74,10 +74,6 @@
 #include <limits.h>
 #include <stddef.h>
 
-#ifndef LANDLOCK_ACCESS_FS_TRUNCATE
-#define LANDLOCK_ACCESS_FS_TRUNCATE         (1ULL << 14)
-#endif
-
 #define OFF(f) offsetof(struct seccomp_data, f)
 
 #define UNVEIL_READ                                             \
