@@ -96,7 +96,7 @@ $(OUTPUT_FOLDER)/%.o: %.c
 > @mkdir --parents $(OUTPUT_FOLDER)/libc/x
 > @mkdir --parents $(OUTPUT_FOLDER)/libc/runtime
 > @mkdir --parents $(OUTPUT_FOLDER)/libc/elf
-> $(CC) -c $^ -o $@ $(CFLAGS)
+> $(CC) -c $< -o $@ $(CFLAGS)
 
 # Include dependencies for the object files
 include $(shell [ -d $(OUTPUT_FOLDER)/obj ] && find $(OUTPUT_FOLDER)/ -type f -name '*.d')
