@@ -31,6 +31,9 @@ override CFLAGS += -I.
 # We need functions provided by defining _GNU_SOURCE
 override CFLAGS += -D_GNU_SOURCE
 
+# We need to compile as PIC code since we're making shared libraries here
+override CFLAGS += -fPIC
+
 # LDFLAGS should contain CFLAGS (seperate so command-line can add to it, and
 # to correspond to usual practice)
 override LDFLAGS += $(CFLAGS)
@@ -39,35 +42,48 @@ OUTPUT_FOLDER = o/$(MODE)
 
 .PHONY: all clean
 
-BINARY_NAME := pledge
+all: $(OUTPUT_FOLDER)/pledge $(OUTPUT_FOLDER)/sandbox.so
 
-all: $(OUTPUT_FOLDER)/$(BINARY_NAME)
+# Note: we cannot merge the source file list for pledge and the sandbox as this may otherwise result in constructors calling forbidden syscalls in the sandbox
+PLEDGE_SOURCE_FILES := cmd/pledge
+PLEDGE_SOURCE_FILES += libc/calls/commandv libc/calls/getcpucount libc/calls/islinux
+PLEDGE_SOURCE_FILES += libc/calls/landlock_add_rule libc/calls/landlock_create_ruleset
+PLEDGE_SOURCE_FILES += libc/calls/landlock_restrict_self libc/calls/parsepromises
+PLEDGE_SOURCE_FILES += libc/calls/pledge libc/calls/pledge-linux libc/calls/unveil
 
-# Program source files
-SOURCE_FILES := cmd/pledge
+PLEDGE_SOURCE_FILES += libc/x/xdie libc/x/xjoinpaths libc/x/xmalloc libc/x/xrealloc
+PLEDGE_SOURCE_FILES += libc/x/xstrcat libc/x/xstrdup
 
-SOURCE_FILES += libc/calls/commandv libc/calls/getcpucount libc/calls/islinux
-SOURCE_FILES += libc/calls/landlock_add_rule libc/calls/landlock_create_ruleset
-SOURCE_FILES += libc/calls/landlock_restrict_self libc/calls/parsepromises
-SOURCE_FILES += libc/calls/pledge libc/calls/pledge-linux libc/calls/unveil
+PLEDGE_SOURCE_FILES += libc/elf/checkelfaddress libc/elf/getelfsegmentheaderaddress
 
-SOURCE_FILES += libc/x/xdie libc/x/xjoinpaths libc/x/xmalloc libc/x/xrealloc
-SOURCE_FILES += libc/x/xstrcat libc/x/xstrdup
+PLEDGE_SOURCE_FILES += libc/str/classifypath libc/str/endswith libc/str/isabspath
 
-SOURCE_FILES += libc/str/classifypath libc/str/endswith libc/str/isabspath 
+PLEDGE_SOURCE_FILES += libc/intrin/promises libc/intrin/pthread_setcancelstate
 
-SOURCE_FILES += libc/fmt/joinpaths libc/fmt/sizetol
+PLEDGE_SOURCE_FILES += libc/fmt/joinpaths libc/fmt/sizetol
 
-SOURCE_FILES += libc/sysv/calls/ioprio_set
+PLEDGE_SOURCE_FILES += libc/runtime/isdynamicexecutable
 
-SOURCE_FILES += libc/intrin/promises libc/intrin/pthread_setcancelstate
+PLEDGE_SOURCE_FILES += libc/sysv/calls/ioprio_set
 
-SOURCE_FILES += libc/mem/copyfd
+SANDBOX_SOURCE_FILES := cmd/sandbox
+SANDBOX_SOURCE_FILES += libc/calls/pledge-linux
 
-OBJECT_FILES := $(addprefix $(OUTPUT_FOLDER)/, $(addsuffix .o, $(SOURCE_FILES)))
 
-$(OUTPUT_FOLDER)/$(BINARY_NAME): $(OBJECT_FILES)
-> $(CC) $(LDFLAGS) -o $@ $(OBJECT_FILES)
+SANDBOX_OBJECT_FILES := $(addprefix $(OUTPUT_FOLDER)/, $(addsuffix .o, $(SANDBOX_SOURCE_FILES)))
+PLEDGE_OBJECT_FILES := $(addprefix $(OUTPUT_FOLDER)/, $(addsuffix .o, $(PLEDGE_SOURCE_FILES)))
+
+# First we need to have a shared object for the sandbox
+$(OUTPUT_FOLDER)/sandbox.so: $(SANDBOX_OBJECT_FILES)
+> $(CC) $(LDFLAGS) -shared -o $@ $^
+
+# Next we need to make an object file out of that shared object containing the shared object as a symbol
+$(OUTPUT_FOLDER)/embedded-sandbox.o: $(OUTPUT_FOLDER)/sandbox.so
+> ld -r -b binary -o $@ $^
+
+# Finally we need to embed the sandbox into our executable so it can copy it out when needed
+$(OUTPUT_FOLDER)/pledge: $(PLEDGE_OBJECT_FILES) $(OUTPUT_FOLDER)/embedded-sandbox.o
+> $(CC) $(LDFLAGS) -o $@ $^
 
 $(OUTPUT_FOLDER)/%.o: %.c
 > @mkdir --parents $(OUTPUT_FOLDER)/cmd
@@ -78,7 +94,9 @@ $(OUTPUT_FOLDER)/%.o: %.c
 > @mkdir --parents $(OUTPUT_FOLDER)/libc/fmt
 > @mkdir --parents $(OUTPUT_FOLDER)/libc/intrin
 > @mkdir --parents $(OUTPUT_FOLDER)/libc/x
-> $(CC) -c $< -o $@ $(CFLAGS)
+> @mkdir --parents $(OUTPUT_FOLDER)/libc/runtime
+> @mkdir --parents $(OUTPUT_FOLDER)/libc/elf
+> $(CC) -c $^ -o $@ $(CFLAGS)
 
 # Include dependencies for the object files
 include $(shell [ -d $(OUTPUT_FOLDER)/obj ] && find $(OUTPUT_FOLDER)/ -type f -name '*.d')

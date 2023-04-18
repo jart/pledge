@@ -46,9 +46,7 @@
 #include "libc/macros.internal.h"
 /*
 #include "libc/math.h"
-*/
 #include "libc/mem/copyfd.internal.h"
-/*
 #include "libc/mem/gc.internal.h"
 #include "libc/mem/mem.h"
 #include "libc/nexgen32e/kcpuids.h"
@@ -572,26 +570,49 @@ bool FileExistsAndIsNewerThan(const char *filepath, const char *thanpath) {
   return st1.st_mtim.tv_nsec >= st2.st_mtim.tv_nsec;
 }
 
-int Extract(const char *from, const char *to, int mode) {
-  int fdin, fdout;
-  if ((fdin = open(from, O_RDONLY)) == -1) return -1;
-  if ((fdout = creat(to, mode)) == -1) {
-    close(fdin);
-    return -1;
+int ExtractEmbeddedSandbox(const char *to, int mode) {
+  extern char _binary_o__sandbox_so_start[],
+      _binary_o__sandbox_so_end[];  // Defined by the embedded sandbox object -
+                                    // see also the Makefile for how this is
+                                    // setup using ld -r -b binary
+  int fdout;
+  ssize_t write_rc;
+  size_t bytes_written, bytes_just_written, bytes_to_write;
+
+  if ((fdout = creat(to, mode)) == -1) return -1;
+
+  bytes_to_write = _binary_o__sandbox_so_end - _binary_o__sandbox_so_start;
+  for (bytes_written = 0; bytes_written < bytes_to_write;
+       bytes_written += bytes_just_written) {
+    write_rc = write(fdout, _binary_o__sandbox_so_start + bytes_written,
+                     bytes_to_write - bytes_written);
+    if (write_rc >= 0) {
+      bytes_just_written = write_rc;
+    } else if (errno == EINTR) {
+      bytes_just_written = 0;
+    } else
+      break;
   }
-  if (copyfd(fdin, fdout, -1) == -1) {
+
+  if (write_rc < 0) {
     close(fdout);
-    close(fdin);
     return -1;
   }
-  return close(fdout) | close(fdin);
+  return close(fdout);
 }
 
 int main(int argc, char *argv[]) {
   const char *s;
   bool hasfunbits;
   int fdin, fdout;
+
+  // Note that we need separate buffer variables for each environment variable,
+  // as strings passed to putenv must not be modified further (as this may
+  // itself modify the environment)
   char buf[PATH_MAX];
+  char buf_ld_preload_env_var[PATH_MAX];
+  char buf_pledge_env_var[PATH_MAX];
+
   int e, zipfd, memfd;
   int useruid, usergid;
   int owneruid, ownergid;
@@ -715,16 +736,16 @@ int main(int argc, char *argv[]) {
   }
 
   // figure out where we want the dso
-#if 0  // TODO: Implement this later
   if (_IsDynamicExecutable(prog)) {
     isdynamic = true;
     if ((s = getenv("TMPDIR")) ||  //
         (s = getenv("HOME")) ||    //
         (s = ".")) {
       ksnprintf(dsopath, sizeof(dsopath), "%s/sandbox.so", s);
-      if (!FileExistsAndIsNewerThan(dsopath, GetProgramExecutableName())) {
+      if (!FileExistsAndIsNewerThan(dsopath,
+                                    argv[0] /*GetProgramExecutableName()*/)) {
         ksnprintf(tmppath, sizeof(tmppath), "%s/sandbox.so.%d", s, getpid());
-        if (Extract("/zip/sandbox.so", tmppath, 0755) == -1) {
+        if (ExtractEmbeddedSandbox(tmppath, 0755) == -1) {
           kprintf("error: extract dso failed: %m\n");
           exit(1);
         }
@@ -733,11 +754,11 @@ int main(int argc, char *argv[]) {
           exit(1);
         }
       }
-      ksnprintf(buf, sizeof(buf), "LD_PRELOAD=%s", dsopath);
-      putenv(buf);
+      ksnprintf(buf_ld_preload_env_var, sizeof(buf_ld_preload_env_var),
+                "LD_PRELOAD=%s", dsopath);
+      putenv(buf_ld_preload_env_var);
     }
   }
-#endif
 
   if (g_dontdrop) {
     if (hasfunbits) {
@@ -826,8 +847,9 @@ int main(int argc, char *argv[]) {
 
   // pass arguments to pledge() inside the dso
   if (isdynamic) {
-    ksnprintf(buf, sizeof(buf), "_PLEDGE=%ld,%ld", ~ipromises, __pledge_mode);
-    putenv(buf);
+    ksnprintf(buf_pledge_env_var, sizeof(buf_pledge_env_var), "_PLEDGE=%ld,%ld",
+              ~ipromises, __pledge_mode);
+    putenv(buf_pledge_env_var);
   }
 
   if (SetLimit(RLIMIT_NOFILE, g_nfdquota, g_nfdquota) == -1) {

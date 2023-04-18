@@ -1,7 +1,7 @@
 /*-*- mode:c;indent-tabs-mode:nil;c-basic-offset:2;tab-width:8;coding:utf-8 -*-│
 │vi: set net ft=c ts=2 sts=2 sw=2 fenc=utf-8                                :vi│
 ╞══════════════════════════════════════════════════════════════════════════════╡
-│ Copyright 2022 Justine Alexandra Roberts Tunney                              │
+│ Copyright 2020 Justine Alexandra Roberts Tunney                              │
 │                                                                              │
 │ Permission to use, copy, modify, and/or distribute this software for         │
 │ any purpose with or without fee is hereby granted, provided that the         │
@@ -16,32 +16,17 @@
 │ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR             │
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
-#include "libc/calls/calls.h"
-#include "libc/calls/pledge.h"
-#include "libc/calls/pledge.internal.h"
-#include "libc/intrin/promises.internal.h"
+#include "libc/elf/elf.h"
 #include "libc/runtime/runtime.h"
 
-/*
- * runs pledge at glibc executable load time, e.g.
- * strace -vff bash -c '_PLEDGE=4194303,0 LD_PRELOAD=$HOME/sandbox.so ls'
- */
-
-__attribute__((__constructor__)) void init(void) {
-  int c, i, j;
-  const char *s;
-  uint64_t arg[2] = {0};
-  s = getenv("_PLEDGE");
-  for (i = j = 0; i < 2; ++i) {
-    while ((c = s[j] & 255)) {
-      ++j;
-      if ('0' <= c & c <= '9') {
-        arg[i] *= 10;
-        arg[i] += c - '0';
-      } else {
-        break;
-      }
-    }
+void CheckElfAddress(const Elf64_Ehdr *elf, size_t mapsize, intptr_t addr,
+                     size_t addrsize) {
+#if 1//!(TRUSTWORTHY + ELF_TRUSTWORTHY + 0) || ELF_UNTRUSTWORTHY + 0
+  if (addr < (intptr_t)elf || addr + addrsize > (intptr_t)elf + mapsize) {
+    /* kprintf("%p-%p falls outside interval %p-%p",  // */
+    /*         addr, addr + addrsize,                 // */
+    /*         elf, (char *)elf + mapsize);           // */
+    abort();
   }
-  sys_pledge_linux(~arg[0], arg[1]);
+#endif
 }

@@ -1,7 +1,7 @@
 /*-*- mode:c;indent-tabs-mode:nil;c-basic-offset:2;tab-width:8;coding:utf-8 -*-│
 │vi: set net ft=c ts=2 sts=2 sw=2 fenc=utf-8                                :vi│
 ╞══════════════════════════════════════════════════════════════════════════════╡
-│ Copyright 2022 Justine Alexandra Roberts Tunney                              │
+│ Copyright 2020 Justine Alexandra Roberts Tunney                              │
 │                                                                              │
 │ Permission to use, copy, modify, and/or distribute this software for         │
 │ any purpose with or without fee is hereby granted, provided that the         │
@@ -16,64 +16,12 @@
 │ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR             │
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
-#include "libc/calls/calls.h"
-// #include "libc/errno.h"
-// #include "libc/mem/mem.h"
+#include "libc/elf/elf.h"
 
-#include <errno.h>
-#include <stdlib.h>
-#include <unistd.h>
-
-#define CHUNK 32768
-
-/**
- * Copies data between fds the old fashioned way.
- *
- * @return bytes successfully exchanged
- */
-ssize_t copyfd(int infd, int outfd, size_t n) {
-  int e;
-  char *buf;
-  ssize_t rc;
-  size_t i, j, got, sent;
-  rc = 0;
-  if (n) {
-    if ((buf = malloc(CHUNK))) {
-      for (e = errno, i = 0; i < n; i += j) {
-        rc = read(infd, buf, CHUNK);
-        if (rc == -1) {
-          // eintr may interrupt the read operation
-          if (i && errno == EINTR) {
-            // suppress error if partially completed
-            errno = e;
-            rc = i;
-          }
-          break;
-        }
-        got = rc;
-        if (!got) {
-          rc = i;
-          break;
-        }
-        // write operation must complete
-        for (j = 0; j < got; j += sent) {
-          rc = write(outfd, buf + j, got - j);
-          if (rc != -1) {
-            sent = rc;
-          } else if (errno == EINTR) {
-            // write operation must be uninterruptible
-            errno = e;
-            sent = 0;
-          } else {
-            break;
-          }
-        }
-        if (rc == -1) break;
-      }
-      free(buf);
-    } else {
-      rc = -1;
-    }
-  }
-  return rc;
+Elf64_Phdr *GetElfSegmentHeaderAddress(const Elf64_Ehdr *elf, size_t mapsize,
+                                       unsigned i) {
+  intptr_t addr =
+      ((intptr_t)elf + (intptr_t)elf->e_phoff + (intptr_t)elf->e_phentsize * i);
+  CheckElfAddress(elf, mapsize, addr, elf->e_phentsize);
+  return (Elf64_Phdr *)addr;
 }

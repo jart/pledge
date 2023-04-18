@@ -16,32 +16,78 @@
 │ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR             │
 │ PERFORMANCE OF THIS SOFTWARE.                                                │
 ╚─────────────────────────────────────────────────────────────────────────────*/
+#include "libc/calls/blockcancel.internal.h"
 #include "libc/calls/calls.h"
-#include "libc/calls/pledge.h"
-#include "libc/calls/pledge.internal.h"
-#include "libc/intrin/promises.internal.h"
-#include "libc/runtime/runtime.h"
-
 /*
- * runs pledge at glibc executable load time, e.g.
- * strace -vff bash -c '_PLEDGE=4194303,0 LD_PRELOAD=$HOME/sandbox.so ls'
- */
+#include "libc/calls/struct/stat.h"
+#include "libc/elf/def.h"
+*/
+#include "libc/elf/elf.h"
+/*
+#include "libc/elf/struct/ehdr.h"
+#include "libc/elf/struct/phdr.h"
+#include "libc/errno.h"
+*/
+#include "libc/intrin/bits.h"
+#include "libc/runtime/runtime.h"
+/*
+#include "libc/sysv/consts/map.h"
+#include "libc/sysv/consts/o.h"
+#include "libc/sysv/consts/prot.h"
+*/
 
-__attribute__((__constructor__)) void init(void) {
-  int c, i, j;
-  const char *s;
-  uint64_t arg[2] = {0};
-  s = getenv("_PLEDGE");
-  for (i = j = 0; i < 2; ++i) {
-    while ((c = s[j] & 255)) {
-      ++j;
-      if ('0' <= c & c <= '9') {
-        arg[i] *= 10;
-        arg[i] += c - '0';
-      } else {
-        break;
-      }
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+/**
+ * Returns true if ELF executable uses dynamic loading magic.
+ */
+bool _IsDynamicExecutable(const char *prog) {
+  bool res;
+  Elf64_Ehdr *e;
+  Elf64_Phdr *p;
+  struct stat st;
+  int i, fd, err;
+  BLOCK_CANCELLATIONS;
+  fd = -1;
+  err = errno;
+  e = MAP_FAILED;
+  if ((fd = open(prog, O_RDONLY)) == -1) {
+    res = false;
+    goto Finish;
+  }
+  if (fstat(fd, &st) == -1 || st.st_size < 64) {
+    res = false;
+    goto Finish;
+  }
+  if ((e = mmap(0, st.st_size, PROT_READ, MAP_SHARED, fd, 0)) == MAP_FAILED) {
+    res = false;
+    goto Finish;
+  }
+  if (READ32LE(e->e_ident) != READ32LE(ELFMAG)) {
+    res = false;
+    goto Finish;
+  }
+  if (e->e_type == ET_DYN) {
+    res = true;
+    goto Finish;
+  }
+  for (i = 0; i < e->e_phnum; ++i) {
+    p = GetElfSegmentHeaderAddress(e, st.st_size, i);
+    if (p->p_type == PT_INTERP || p->p_type == PT_DYNAMIC) {
+      res = true;
+      goto Finish;
     }
   }
-  sys_pledge_linux(~arg[0], arg[1]);
+  res = false;
+  goto Finish;
+Finish:
+  if (e != MAP_FAILED) munmap(e, st.st_size);
+  if (fd != -1) close(fd);
+  errno = err;
+  ALLOW_CANCELLATIONS;
+  return res;
 }
