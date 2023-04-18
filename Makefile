@@ -39,8 +39,6 @@ OUTPUT_FOLDER = o/$(MODE)
 
 .PHONY: all clean
 
-.PREVIOUS: $(OUTPUT_FOLDER)/%.o
-
 BINARY_NAME := pledge
 
 all: $(OUTPUT_FOLDER)/$(BINARY_NAME)
