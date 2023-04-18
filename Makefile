@@ -37,11 +37,11 @@ override CFLAGS += -D_GNU_SOURCE
 # to correspond to usual practice)
 override LDFLAGS += $(CFLAGS)
 
-OUTPUT_FOLDER = o/
+OUTPUT_FOLDER = o/$(MODE)
 
 .PHONY: all clean
 
-.PREVIOUS: $(OUTPUT_FOLDER)/obj/%.o
+.PREVIOUS: $(OUTPUT_FOLDER)/%.o
 
 BINARY_NAME := pledge
 
@@ -68,24 +68,24 @@ SOURCE_FILES += libc/intrin/promises libc/intrin/pthread_setcancelstate
 
 SOURCE_FILES += libc/mem/copyfd
 
-OBJECT_FILES := $(addprefix $(OUTPUT_FOLDER)/obj/, $(addsuffix .o, $(SOURCE_FILES)))
+OBJECT_FILES := $(addprefix $(OUTPUT_FOLDER)/, $(addsuffix .o, $(SOURCE_FILES)))
 
 $(OUTPUT_FOLDER)/$(BINARY_NAME): $(OBJECT_FILES)
 > $(CC) $(LDFLAGS) -o $@ $(OBJECT_FILES)
 
-$(OUTPUT_FOLDER)/obj/%.o: %.c
-> @mkdir --parents $(OUTPUT_FOLDER)/obj/cmd
-> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/calls
-> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/sysv/calls
-> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/str
-> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/mem
-> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/fmt
-> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/intrin
-> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/x
+$(OUTPUT_FOLDER)/%.o: %.c
+> @mkdir --parents $(OUTPUT_FOLDER)/cmd
+> @mkdir --parents $(OUTPUT_FOLDER)/libc/calls
+> @mkdir --parents $(OUTPUT_FOLDER)/libc/sysv/calls
+> @mkdir --parents $(OUTPUT_FOLDER)/libc/str
+> @mkdir --parents $(OUTPUT_FOLDER)/libc/mem
+> @mkdir --parents $(OUTPUT_FOLDER)/libc/fmt
+> @mkdir --parents $(OUTPUT_FOLDER)/libc/intrin
+> @mkdir --parents $(OUTPUT_FOLDER)/libc/x
 > $(CC) -c $< -o $@ $(CFLAGS)
 
 # Include dependencies for the object files
-include $(shell [ -d $(OUTPUT_FOLDER)/obj ] && find $(OUTPUT_FOLDER)/obj/ -type f -name '*.d')
+include $(shell [ -d $(OUTPUT_FOLDER)/obj ] && find $(OUTPUT_FOLDER)/ -type f -name '*.d')
 
 # Remove all object, binary and other produced files
 clean:
