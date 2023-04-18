@@ -18,33 +18,43 @@
 ╚─────────────────────────────────────────────────────────────────────────────*/
 /*
 #include "libc/assert.h"
+*/
 #include "libc/calls/calls.h"
 #include "libc/calls/landlock.h"
 #include "libc/calls/pledge.h"
 #include "libc/calls/pledge.internal.h"
+/*
 #include "libc/calls/struct/rlimit.h"
 #include "libc/calls/struct/sched_param.h"
 #include "libc/calls/struct/seccomp.h"
 #include "libc/calls/struct/stat.h"
 #include "libc/calls/struct/sysinfo.h"
 #include "libc/calls/syscall-sysv.internal.h"
+*/
 #include "libc/calls/syscall_support-sysv.internal.h"
 #include "libc/dce.h"
+/*
 #include "libc/elf/def.h"
 #include "libc/elf/struct/ehdr.h"
 #include "libc/errno.h"
+*/
 #include "libc/fmt/conv.h"
 #include "libc/intrin/bits.h"
 #include "libc/intrin/kprintf.h"
 #include "libc/intrin/promises.internal.h"
 #include "libc/intrin/safemacros.internal.h"
 #include "libc/macros.internal.h"
+/*
 #include "libc/math.h"
+*/
 #include "libc/mem/copyfd.internal.h"
+/*
 #include "libc/mem/gc.internal.h"
 #include "libc/mem/mem.h"
 #include "libc/nexgen32e/kcpuids.h"
+*/
 #include "libc/runtime/runtime.h"
+/*
 #include "libc/sock/sock.h"
 #include "libc/sock/struct/pollfd.h"
 #include "libc/stdio/stdio.h"
@@ -61,25 +71,12 @@
 #include "libc/sysv/consts/rlimit.h"
 #include "libc/sysv/consts/sched.h"
 #include "libc/sysv/errfuns.h"
+*/
 #include "libc/x/x.h"
+/*
 #include "third_party/getopt/getopt.h"
 */
 
-#include "lib/getcpucount.h"
-#include "lib/sizetol.h"
-#include "lib/kprintf.h"
-#include "lib/xstrcat.h"
-#include "lib/landlock_create_ruleset.h"
-#include "lib/unveil.h"
-#include "lib/ioprio_set.h"
-#include "lib/pledge.h"
-#include "lib/xjoinpaths.h"
-#include "lib/copyfd.h"
-#include "lib/IsLinux.h"
-#include "lib/IsOpenbsd.h"
-#include "lib/is_linux_2_6_23.h"
-#include "lib/commandv.h"
-#include "lib/ksnprintf.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -90,6 +87,7 @@
 #include <sys/resource.h>
 #include <sched.h>
 #include <linux/sched.h>
+#include <linux/ioprio.h>
 #include <sys/sysinfo.h>
 #include <string.h>
 #include <sys/param.h>

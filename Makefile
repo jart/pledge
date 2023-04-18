@@ -48,14 +48,25 @@ BINARY_NAME := pledge
 all: $(OUTPUT_FOLDER)/$(BINARY_NAME)
 
 # Program source files
-SOURCE_FILES := cmd/pledge lib/pledge lib/getcpucount lib/sizetol lib/xstrcat
-SOURCE_FILES += lib/landlock_create_ruleset lib/unveil lib/ioprio_set
-SOURCE_FILES += lib/xjoinpaths lib/copyfd lib/commandv lib/is_linux_2_6_23
-SOURCE_FILES += lib/ParsePromises lib/sys_pledge_linux lib/xmalloc lib/xrealloc
-SOURCE_FILES += lib/landlock_restrict_self lib/joinpaths
-SOURCE_FILES += lib/pthread_block_cancellations lib/pthread_allow_cancellations
-SOURCE_FILES += lib/landlock_add_rule lib/xstrdup lib/isabspath lib/endswith
-SOURCE_FILES += lib/xdie lib/classifypath
+SOURCE_FILES := cmd/pledge
+
+SOURCE_FILES += libc/calls/commandv libc/calls/getcpucount libc/calls/islinux
+SOURCE_FILES += libc/calls/landlock_add_rule libc/calls/landlock_create_ruleset
+SOURCE_FILES += libc/calls/landlock_restrict_self libc/calls/parsepromises
+SOURCE_FILES += libc/calls/pledge libc/calls/pledge-linux libc/calls/unveil
+
+SOURCE_FILES += libc/x/xdie libc/x/xjoinpaths libc/x/xmalloc libc/x/xrealloc
+SOURCE_FILES += libc/x/xstrcat libc/x/xstrdup
+
+SOURCE_FILES += libc/str/classifypath libc/str/endswith libc/str/isabspath 
+
+SOURCE_FILES += libc/fmt/joinpaths libc/fmt/sizetol
+
+SOURCE_FILES += libc/sysv/calls/ioprio_set
+
+SOURCE_FILES += libc/intrin/promises libc/intrin/pthread_setcancelstate
+
+SOURCE_FILES += libc/mem/copyfd
 
 OBJECT_FILES := $(addprefix $(OUTPUT_FOLDER)/obj/, $(addsuffix .o, $(SOURCE_FILES)))
 
@@ -64,7 +75,13 @@ $(OUTPUT_FOLDER)/$(BINARY_NAME): $(OBJECT_FILES)
 
 $(OUTPUT_FOLDER)/obj/%.o: %.c
 > @mkdir --parents $(OUTPUT_FOLDER)/obj/cmd
-> @mkdir --parents $(OUTPUT_FOLDER)/obj/lib
+> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/calls
+> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/sysv/calls
+> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/str
+> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/mem
+> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/fmt
+> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/intrin
+> @mkdir --parents $(OUTPUT_FOLDER)/obj/libc/x
 > $(CC) -c $< -o $@ $(CFLAGS)
 
 # Include dependencies for the object files
@@ -72,5 +89,5 @@ include $(shell [ -d $(OUTPUT_FOLDER)/obj ] && find $(OUTPUT_FOLDER)/obj/ -type 
 
 # Remove all object, binary and other produced files
 clean:
-> rm -rf o
+> rm -rf ./o/
 
