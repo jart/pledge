@@ -107,7 +107,7 @@ STATIC_YOINK("zip_uri_support");
 
 #define USAGE \
   "\
-usage: pledge.com [-hnN] PROG ARGS...\n\
+usage: pledge [-hnN] PROG ARGS...\n\
   -h              show help\n\
   -g GID          call setgid()\n\
   -u UID          call setuid()\n\
@@ -148,8 +148,8 @@ usage: pledge.com [-hnN] PROG ARGS...\n\
      - vminfo: allows /proc/stat, /proc/self/maps, etc.\n\
      - tmppath: allows /tmp, $TMPPATH, lstat, unlink\n\
 \n\
-pledge.com v1.8\n\
-copyright 2022 justine alexandra roberts tunney\n\
+pledge v1.8\n\
+copyright 2023 justine alexandra roberts tunney\n\
 notice licenses are embedded in the binary\n\
 https://twitter.com/justinetunney\n\
 https://linkedin.com/in/jtunney\n\
