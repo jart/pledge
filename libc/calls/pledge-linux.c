@@ -1233,21 +1233,19 @@ static void AllowCloneRestrict(struct Filter *f) {
 //
 static void AllowCloneThread(struct Filter *f) {
 #define NEED (CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_THREAD | CLONE_SIGHAND)
-#define NOPE (CLONE_NEWNS | CLONE_PTRACE | CLONE_UNTRACED)
   static const struct sock_filter fragment[] = {
       /*L0*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_clone, 0, 9 - 1),
       /*L1*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[0])),
       /*L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, NEED),
       /*L3*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, NEED, 0, 8 - 4),
       /*L4*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[0])),
-      /*L5*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, NOPE),
+      /*L5*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, CLONE_NEWNS | CLONE_PTRACE | CLONE_UNTRACED),
       /*L6*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 1),
       /*L7*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
       /*L8*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
       /*L9*/ /* next filter */
   };
   AppendFilter(f, PLEDGE(fragment));
-#undef NOPE
 #undef NEED
 }
 
@@ -1404,7 +1402,7 @@ static void AllowMmapExec(struct Filter *f) {
   static const struct sock_filter fragment[] = {
       /*L0*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_mmap, 0, 6 - 1),
       /*L1*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[3])),  // flags
-      /*L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 0x52000),
+      /*L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, MAP_LOCKED | MAP_NONBLOCK | MAP_HUGETLB),
       /*L3*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 5 - 4),
       /*L4*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
       /*L5*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
@@ -1477,7 +1475,7 @@ static void AllowOpenReadonly(struct Filter *f) {
       /*L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, O_ACCMODE),
       /*L3*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, O_RDONLY, 0, 8 - 4),
       /*L4*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[1])),
-      /*L5*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 020001100),
+      /*L5*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, __O_TMPFILE | O_TRUNC | O_CREAT),
       /*L6*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 1),
       /*L7*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
       /*L8*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
@@ -1504,7 +1502,7 @@ static void AllowOpenatReadonly(struct Filter *f) {
       /*L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, O_ACCMODE),
       /*L3*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, O_RDONLY, 0, 8 - 4),
       /*L4*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[2])),
-      /*L5*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 020001100),
+      /*L5*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, __O_TMPFILE | O_TRUNC | O_CREAT),
       /*L6*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 1),
       /*L7*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
       /*L8*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
@@ -1532,7 +1530,7 @@ static void AllowOpenWriteonly(struct Filter *f) {
       /* L3*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, O_WRONLY, 1, 0),
       /* L4*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, O_RDWR, 0, 9 - 5),
       /* L5*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[1])),
-      /* L6*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 020000100),
+      /* L6*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, __O_TMPFILE | O_CREAT),
       /* L7*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 1),
       /* L8*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
       /* L9*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
@@ -1560,7 +1558,7 @@ static void AllowOpenatWriteonly(struct Filter *f) {
       /* L3*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, O_WRONLY, 1, 0),
       /* L4*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, O_RDWR, 0, 9 - 5),
       /* L5*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[2])),
-      /* L6*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 020000100),
+      /* L6*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, __O_TMPFILE | O_CREAT),
       /* L7*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 1),
       /* L8*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
       /* L9*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
@@ -1585,13 +1583,13 @@ static void AllowOpenCreatonly(struct Filter *f) {
   static const struct sock_filter fragment[] = {
       /* L0*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_open, 0, 12 - 1),
       /* L1*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[1])),
-      /* L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 000000100),
-      /* L3*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 000000100, 7 - 4, 0),
+      /* L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, O_CREAT),
+      /* L3*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, O_CREAT, 7 - 4, 0),
       /* L4*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[1])),
       /* L5*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 020200000),
       /* L6*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 020200000, 0, 10 - 7),
       /* L7*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[2])),
-      /* L8*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 07000),
+      /* L8*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, S_ISVTX | S_ISGID | S_ISUID),
       /* L9*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 1),
       /*L10*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
       /*L11*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
@@ -1616,13 +1614,13 @@ static void AllowOpenatCreatonly(struct Filter *f) {
   static const struct sock_filter fragment[] = {
       /* L0*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_openat, 0, 12 - 1),
       /* L1*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[2])),
-      /* L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 000000100),
-      /* L3*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 000000100, 7 - 4, 0),
+      /* L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, O_CREAT),
+      /* L3*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, O_CREAT, 7 - 4, 0),
       /* L4*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[2])),
       /* L5*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 020200000),
       /* L6*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 020200000, 0, 10 - 7),
       /* L7*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[3])),
-      /* L8*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 07000),
+      /* L8*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, S_ISVTX | S_ISGID | S_ISUID),
       /* L9*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 1),
       /*L10*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
       /*L11*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
@@ -1642,7 +1640,7 @@ static void AllowCreatRestrict(struct Filter *f) {
   static const struct sock_filter fragment[] = {
       /*L0*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_creat, 0, 6 - 1),
       /*L1*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[1])),
-      /*L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 07000),
+      /*L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, S_ISVTX | S_ISGID | S_ISUID),
       /*L3*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 1),
       /*L4*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
       /*L5*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
@@ -1665,12 +1663,13 @@ static void AllowFcntlStdio(struct Filter *f) {
   static const struct sock_filter fragment[] = {
       /*L0*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_fcntl, 0, 6 - 1),
       /*L1*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[1])),
-      /*L2*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 1030, 4 - 3, 0),
+      /*L2*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, F_DUPFD_CLOEXEC, 4 - 3, 0),
       /*L3*/ BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 5, 5 - 4, 0),
       /*L4*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
       /*L5*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
       /*L6*/ /* next filter */
   };
+  _Static_assert(F_DUPFD == 0 && F_GETFD == 1 && F_SETFD == 2 && F_GETFL == 3 && F_SETFL == 4, "This ensures that the above BPF_JGE statement will work correctly");
   AppendFilter(f, PLEDGE(fragment));
 }
 
@@ -1841,7 +1840,7 @@ static void AllowChmodNobits(struct Filter *f) {
   static const struct sock_filter fragment[] = {
       /*L0*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_chmod, 0, 6 - 1),
       /*L1*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[1])),
-      /*L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 07000),
+      /*L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, S_ISVTX | S_ISGID | S_ISUID),
       /*L3*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 1),
       /*L4*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
       /*L5*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
@@ -1880,7 +1879,7 @@ static void AllowFchmodatNobits(struct Filter *f) {
   static const struct sock_filter fragment[] = {
       /*L0*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_fchmodat, 0, 6 - 1),
       /*L1*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[2])),
-      /*L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 07000),
+      /*L2*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, S_ISVTX | S_ISGID | S_ISUID),
       /*L3*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 0, 1),
       /*L4*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
       /*L5*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
