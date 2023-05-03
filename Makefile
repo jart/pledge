@@ -86,16 +86,16 @@ $(OUTPUT_FOLDER)/pledge: $(PLEDGE_OBJECT_FILES) $(OUTPUT_FOLDER)/embedded-sandbo
 > $(CC) $(LDFLAGS) -o $@ $^
 
 $(OUTPUT_FOLDER)/%.o: %.c
-> @mkdir --parents $(OUTPUT_FOLDER)/cmd
-> @mkdir --parents $(OUTPUT_FOLDER)/libc/calls
-> @mkdir --parents $(OUTPUT_FOLDER)/libc/sysv/calls
-> @mkdir --parents $(OUTPUT_FOLDER)/libc/str
-> @mkdir --parents $(OUTPUT_FOLDER)/libc/mem
-> @mkdir --parents $(OUTPUT_FOLDER)/libc/fmt
-> @mkdir --parents $(OUTPUT_FOLDER)/libc/intrin
-> @mkdir --parents $(OUTPUT_FOLDER)/libc/x
-> @mkdir --parents $(OUTPUT_FOLDER)/libc/runtime
-> @mkdir --parents $(OUTPUT_FOLDER)/libc/elf
+> @mkdir -p $(OUTPUT_FOLDER)/cmd
+> @mkdir -p $(OUTPUT_FOLDER)/libc/calls
+> @mkdir -p $(OUTPUT_FOLDER)/libc/sysv/calls
+> @mkdir -p $(OUTPUT_FOLDER)/libc/str
+> @mkdir -p $(OUTPUT_FOLDER)/libc/mem
+> @mkdir -p $(OUTPUT_FOLDER)/libc/fmt
+> @mkdir -p $(OUTPUT_FOLDER)/libc/intrin
+> @mkdir -p $(OUTPUT_FOLDER)/libc/x
+> @mkdir -p $(OUTPUT_FOLDER)/libc/runtime
+> @mkdir -p $(OUTPUT_FOLDER)/libc/elf
 > $(CC) -c $< -o $@ $(CFLAGS)
 
 # Include dependencies for the object files
