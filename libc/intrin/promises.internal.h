@@ -23,7 +23,8 @@
 #define PROMISE_VMINFO    19
 #define PROMISE_TMPPATH   20
 #define PROMISE_CHOWN     21
-#define PROMISE_LEN_      22
+#define PROMISE_NETLINK   22
+#define PROMISE_LEN_      23
 
 extern unsigned long __promises;
 extern unsigned long __execpromises;
