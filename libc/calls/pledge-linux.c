@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <linux/audit.h>
 #include <linux/filter.h>
+#include <linux/netlink.h>
 #include <linux/seccomp.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -65,6 +66,7 @@
 #define THREAD    0x8000
 #define TTY       0x8000
 #define UNIX      0x4000
+#define NETLINK   0x8000
 #define NOBITS    0x8000
 #define RESTRICT  0x1000
 
@@ -825,6 +827,10 @@ static const uint16_t kPledgeInet[] = {
     __NR_getsockname,            //
 };
 
+static const uint16_t kPledgeNetlink[] = {
+    __NR_socket | NETLINK,  //
+};
+
 static const uint16_t kPledgeUnix[] = {
     __NR_socket | UNIX,          //
     __NR_listen,                 //
@@ -971,6 +977,7 @@ const struct Pledges kPledge[PROMISE_LEN_] = {
     [PROMISE_FLOCK] = {"flock", PLEDGE(kPledgeFlock)},
     [PROMISE_FATTR] = {"fattr", PLEDGE(kPledgeFattr)},
     [PROMISE_INET] = {"inet", PLEDGE(kPledgeInet)},
+    [PROMISE_NETLINK] = {"netlink", PLEDGE(kPledgeNetlink)},
     [PROMISE_UNIX] = {"unix", PLEDGE(kPledgeUnix)},
     [PROMISE_DNS] = {"dns", PLEDGE(kPledgeDns)},
     [PROMISE_TTY] = {"tty", PLEDGE(kPledgeTty)},
@@ -1762,6 +1769,43 @@ static void AllowSocketInet(struct Filter *f) {
   AppendFilter(f, PLEDGE(fragment));
 }
 
+// The family parameter of socket() must be:
+//
+//   - AF_NETLINK (0x10)
+//
+// The type parameter of socket() will ignore:
+//
+//   - SOCK_CLOEXEC (0x80000)
+//
+// The type parameter of socket() must be one of:
+//
+//   - SOCK_DGRAM (0x02)
+//   - SOCK_RAW   (0x03)
+//
+// The protocol parameter of socket() must be one of:
+//
+//   - NETLINK_ROUTE (0x00)
+//
+static void AllowSocketNetlink(struct Filter *f) {
+    // clang-format off
+    static const struct sock_filter fragment[] = {
+        /*  L0*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_socket, 0, 11 - 1),
+        /*  L1*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[0])),
+        /*  L2*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AF_NETLINK, 0, 10 - 3),
+        /*  L3*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[1])),
+        /*  L4*/ BPF_STMT(BPF_ALU | BPF_AND | BPF_K, ~SOCK_CLOEXEC),
+        /*  L5*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SOCK_DGRAM, 1, 0),
+        /*  L6*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SOCK_RAW, 0, 10 - 7),
+        /*  L7*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[2])),
+        /*  L8*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, NETLINK_ROUTE, 0, 1),
+        /*  L9*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+        /* L10*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
+        /* L11*/ /* next filter */
+    };
+    // clang-format on
+    AppendFilter(f, PLEDGE(fragment));
+}
+
 // The family parameter of socket() must be one of:
 //
 //   - AF_UNIX (1)
@@ -2026,6 +2070,9 @@ static void AppendPledge(struct Filter *f,   //
         break;
       case __NR_socket | UNIX:
         AllowSocketUnix(f);
+        break;
+      case __NR_socket | NETLINK:
+        AllowSocketNetlink(f);
         break;
       case __NR_sendto | ADDRLESS:
         AllowSendtoAddrless(f);
