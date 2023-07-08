@@ -137,6 +137,7 @@ usage: pledge [-hnN] PROG ARGS...\n\
      - sendfd: allow SCM_RIGHTS\n\
      - fattr: allow changing some struct stat bits\n\
      - inet: allow IPv4 and IPv6\n\
+     - netlink: allow netlink features\n\
      - unix: allow local sockets\n\
      - id: allow setuid and friends\n\
      - dns: allow dns and related files\n\
