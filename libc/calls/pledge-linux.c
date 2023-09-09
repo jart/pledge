@@ -1331,6 +1331,7 @@ static void AllowIoctlTty(struct Filter *f) {
 //   - SOL_SOCKET     (1)
 //   - IPPROTO_TCP    (6)
 //   - IPPROTO_IPV6   (41)
+//   - IPPROTO_SCTP   (132)
 //
 // The optname argument of getsockopt/setsockopt must be one of:
 //
@@ -1359,8 +1360,9 @@ static void AllowSockoptRestrict(struct Filter *f) {
       BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_getsockopt, 1, 0),
       BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setsockopt, 0, 29),
       BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[1])),
-      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SOL_SOCKET, 3, 0),
-      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_TCP, 11, 0),
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SOL_SOCKET, 4, 0),
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_TCP, 12, 0),
+      BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_SCTP, 11, 0),
       BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_IP, 18, 0),
       BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_IPV6, 20, 23),
       BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[2])),
@@ -1737,6 +1739,7 @@ static void AllowSendtoAddrless(struct Filter *f) {
 //   - IPPROTO_ICMP (0x01)
 //   - IPPROTO_TCP  (0x06)
 //   - IPPROTO_UDP  (0x11)
+//   - IPPROTO_SCTP (0x84)
 //
 static void AllowSocketInet(struct Filter *f) {
   // clang-format off
@@ -1751,12 +1754,13 @@ static void AllowSocketInet(struct Filter *f) {
       /* L7*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SOCK_DGRAM, 0, 14 - 8),
       /* L8*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(args[2])),
       /* L9*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 3, 0),
-      /*L10*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_ICMP, 2, 0),
-      /*L11*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_TCP, 1, 0),
-      /*L12*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_UDP, 0, 1),
-      /*L13*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
-      /*L14*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
-      /*L15*/ /* next filter */
+      /*L10*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_ICMP, 3, 0),
+      /*L11*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_TCP, 2, 0),
+      /*L12*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_SCTP, 1, 0),
+      /*L13*/ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_UDP, 0, 1),
+      /*L14*/ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+      /*L15*/ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, OFF(nr)),
+      /*L16*/ /* next filter */
   };
   // clang-format on
   AppendFilter(f, PLEDGE(fragment));
